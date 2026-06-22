@@ -1,0 +1,10 @@
+build/
+.gradle/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+.idea/
+*.iml
+out/
+.mewcode/
+CLAUDE.md
+.DS_Store
