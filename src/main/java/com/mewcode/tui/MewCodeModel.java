@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class MewCodeModel implements Model {
 
-    private static final String VERSION = "MewCode v0.1.0";
+    public static final String VERSION = "TermAgent-CLI v0.1.1-learning";
 
     private static final Duration POLL_INTERVAL = Duration.ofMillis(50);
 

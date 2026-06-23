@@ -60,6 +60,11 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// TUI 需要直接读取当前终端输入；否则 JLine 会退化为 dumb terminal 并立即退出。
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+}
+
 // 生成一个包含所有依赖的可执行 jar，方便分发和直接运行。
 tasks.shadowJar {
     archiveBaseName = "mewcode"

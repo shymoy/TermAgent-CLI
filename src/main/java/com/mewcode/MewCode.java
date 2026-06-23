@@ -11,11 +11,10 @@ import com.mewcode.config.ConfigLoader;
 import com.mewcode.print.PrintMode;
 import com.mewcode.remote.RemoteServer;
 import com.mewcode.tui.MewCodeModel;
-
 import com.mewcode.tui.tea.Program;
+import sun.misc.Signal;
 
 import java.util.List;
-import sun.misc.Signal;
 
 public class MewCode {
 
@@ -29,6 +28,8 @@ public class MewCode {
         String remoteAddr = DEFAULT_REMOTE_ADDR;
         String printPrompt = null;
         String outputFormat = "text";
+        boolean showVersion = false;
+        boolean showParameter = false;
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -45,9 +46,25 @@ public class MewCode {
             } else if (arg.startsWith("--remote=")) {
                 remoteMode = true;
                 remoteAddr = arg.substring("--remote=".length());
+            } else if (arg.equals("--version")) {
+                showVersion = true;
+            } else if (arg.equals("--help")) {
+                showParameter = true;
             } else if (configPath == null) {
                 configPath = arg;
             }
+        }
+
+        if (showParameter) {
+            System.out.println("-p");
+            System.out.println("-p=");
+            System.out.println("--remote");
+            System.out.println("--version");
+            return;
+        }
+
+        if (showVersion) {
+            System.out.println(MewCodeModel.VERSION);
         }
 
         // 环境变量回退
