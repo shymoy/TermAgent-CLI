@@ -101,25 +101,34 @@ public class AnthropicClient implements LlmClient {
         return queue;
     }
 
+    /**
+     * 执行一次 Anthropic 流式请求，并把 Anthropic SDK 的原始流事件翻译成项目统一的 StreamEvent。
+     * 这里不直接修改会话历史；Agent 会消费 StreamEvent，并在一轮结束后统一写回 ConversationManager。
+     */
     private void doStream(ConversationManager conv, List<Map<String, Object>> tools,
                           BlockingQueue<StreamEvent> queue) throws Exception {
 
-        // Anchor the prompt cache on the longest-stable prefix: system, then
-        // tools, then the tail of the final user message. ContentReplacementState
-        // in com.mewcode.toolresult is what keeps tool_result content past
-        // these breakpoints byte-stable across turns.
+        // prompt cache 锚在最长且稳定的前缀上：system、tools、最后一条 user 消息尾部。
+        // tool_result 的内容稳定性由 com.mewcode.toolresult 中的替换状态负责维护。
         var systemBlock = TextBlockParam.builder()
                 .text(systemPrompt)
                 .cacheControl(CacheControlEphemeral.builder().build())
                 .build();
+
+        // 把项目内部 Message 列表转换成 Anthropic Messages API 需要的消息结构。
         var messageParams = buildMessages(conv.getMessages());
+
+        // 给最后一条 user 消息的尾部打 cache_control，让 Anthropic 缓存此前稳定内容。
         markLastUserTailForCache(messageParams);
+
+        // 组装本次请求的基础参数：模型、输出上限、system prompt 和历史消息。
         var paramsBuilder = MessageCreateParams.builder()
                 .model(model)
                 .maxTokens(maxOutputTokens)
                 .system(MessageCreateParams.System.ofTextBlockParams(List.of(systemBlock)))
                 .messages(messageParams);
 
+        // thinking 开关由 provider 配置控制；不同模型支持的 thinking 配置形式不同。
         if (thinking) {
             if (ModelResolver.supportsAdaptiveThinking(model)) {
                 paramsBuilder.thinking(ThinkingConfigAdaptive.builder().build());
@@ -131,14 +140,16 @@ public class AnthropicClient implements LlmClient {
         }
 
         if (tools != null && !tools.isEmpty()) {
-            // Tool schemas are stable across turns, so marking the last
-            // tool effectively caches the entire tools block on the wire.
+            // 工具 schema 通常跨轮稳定，只给最后一个 tool 打 cache_control，
+            // 就能让 Anthropic 缓存整个 tools 区块。
             for (int i = 0; i < tools.size(); i++) {
                 boolean isLast = (i == tools.size() - 1);
                 paramsBuilder.addTool(buildTool(tools.get(i), isLast));
             }
         }
 
+        // 下面这些是本次流式响应的临时状态。Anthropic 工具参数会分片返回，
+        // 所以必须先拼接 partial_json，等 content_block_stop 时再解析成完整 JSON。
         String currentToolName = "";
         String currentToolId = "";
         var jsonAccum = new StringBuilder();
@@ -156,6 +167,7 @@ public class AnthropicClient implements LlmClient {
             while (iterator.hasNext()) {
                 var event = iterator.next();
                 if (event.isContentBlockStart()) {
+                    // 新 content block 开始：这里只需要记录当前 block 类型和工具元信息。
                     var startEvent = event.asContentBlockStart();
                     var block = startEvent.contentBlock();
                     if (block.isThinking()) {
@@ -170,6 +182,7 @@ public class AnthropicClient implements LlmClient {
                         queue.put(new StreamEvent.ToolCallStart(currentToolId, currentToolName));
                     }
                 } else if (event.isContentBlockDelta()) {
+                    // block 增量：文本和 thinking 直接转发；工具参数继续累积 JSON 片段。
                     var delta = event.asContentBlockDelta().delta();
                     if (delta.isThinking()) {
                         String text = delta.asThinking().thinking();
@@ -185,6 +198,7 @@ public class AnthropicClient implements LlmClient {
                         queue.put(new StreamEvent.ToolCallDelta(partialJson));
                     }
                 } else if (event.isContentBlockStop()) {
+                    // 当前 block 结束：thinking 要带上签名完成；tool_use 要在这里解析完整参数。
                     if (inThinking) {
                         queue.put(new StreamEvent.ThinkingComplete(
                                 thinkingAccum.toString(), thinkingSignature));
@@ -206,6 +220,7 @@ public class AnthropicClient implements LlmClient {
                         jsonAccum.setLength(0);
                     }
                 } else if (event.isMessageDelta()) {
+                    // message_delta 携带 stopReason 和输出 token；部分兼容供应商也会在这里回传输入 token。
                     var msgDelta = event.asMessageDelta();
                     var sr = msgDelta.delta().stopReason();
                     if (sr.isPresent()) {
@@ -214,11 +229,9 @@ public class AnthropicClient implements LlmClient {
                     var usage = msgDelta.usage();
                     outputTokens = (int) usage.outputTokens();
 
-                    // Standard Anthropic only puts output_tokens in message_delta,
-                    // but some compatible providers (e.g. MiniMax) also report
-                    // input_tokens and cache fields here with the real values
-                    // (message_start may carry 0). Override only when > 0 to
-                    // avoid clobbering valid message_start data.
+                    // 标准 Anthropic 通常只在 message_delta 放 output_tokens。
+                    // 一些兼容供应商会把真实 input/cache token 也放在这里；
+                    // 只有值大于 0 时才覆盖，避免把 message_start 的有效数据清掉。
                     int deltaInput = deltaUsageLong(usage.inputTokens(), usage, "input_tokens");
                     int deltaCacheRead = deltaUsageLong(usage.cacheReadInputTokens(), usage, "cache_read_input_tokens");
                     int deltaCacheCreate = deltaUsageLong(usage.cacheCreationInputTokens(), usage, "cache_creation_input_tokens");
@@ -232,6 +245,7 @@ public class AnthropicClient implements LlmClient {
                         cacheCreationTokens = deltaCacheCreate;
                     }
                 } else if (event.isMessageStart()) {
+                    // message_start 主要提供本次请求的输入 token 和 prompt cache 统计。
                     var msg = event.asMessageStart().message();
                     var usage = msg.usage();
                     inputTokens = (int) usage.inputTokens();
@@ -245,11 +259,17 @@ public class AnthropicClient implements LlmClient {
             }
         }
 
+        // Anthropic 流结束后，向 Agent 发一个统一的结束事件，携带停止原因和 usage。
         queue.put(new StreamEvent.StreamEnd(
                 stopReason != null ? stopReason : "end_turn", inputTokens, outputTokens,
                 cacheReadTokens, cacheCreationTokens));
     }
 
+    /**
+     * 将项目内部的轻量消息转换为 Anthropic Messages API 参数。
+     * 内部消息只区分 "user" 和 "assistant" 两种角色，thinking、
+     * 工具调用和工具结果通过额外字段保存，并在这里展开成 Anthropic content block。
+     */
     private List<MessageParam> buildMessages(List<Message> messages) {
         var result = new ArrayList<MessageParam>();
         for (var msg : messages) {
@@ -257,6 +277,8 @@ public class AnthropicClient implements LlmClient {
             boolean hasToolUses = msg.getToolUses() != null && !msg.getToolUses().isEmpty();
 
             if ("assistant".equals(msg.getRole()) && (hasThinking || hasToolUses)) {
+                // 带 thinking 或工具调用的 assistant 消息必须用 block 数组发送，
+                // 这样 Anthropic 才能识别每个内容块的具体类型。
                 var content = new ArrayList<ContentBlockParam>();
                 if (hasThinking) {
                     for (var tb : msg.getThinkingBlocks()) {
@@ -290,6 +312,8 @@ public class AnthropicClient implements LlmClient {
                         .contentOfBlockParams(content)
                         .build());
             } else if (msg.getToolResults() != null && !msg.getToolResults().isEmpty()) {
+                // Anthropic 没有顶层 "tool" 角色。工具结果要作为 user 消息中的
+                // tool_result block 发送，并通过 tool_use_id 关联前面的 tool_use。
                 var content = new ArrayList<ContentBlockParam>();
                 for (var tr : msg.getToolResults()) {
                     content.add(ContentBlockParam.ofToolResult(
@@ -304,13 +328,14 @@ public class AnthropicClient implements LlmClient {
                         .contentOfBlockParams(content)
                         .build());
             } else {
+                // 普通文本消息可以直接使用 SDK 的字符串 content helper。
+                // 这里把非 assistant 的内部角色都按 user 发送。
                 if (!result.isEmpty()) {
                     var prev = result.getLast();
                     if (prev.role().asString().equals(msg.getRole())) {
                         var merged = prev.toBuilder();
-                        // SDK doesn't easily merge content, so we use addAssistant/addUser helpers
-                        // For simplicity, just add a new message. The API handles consecutive same-role
-                        // by requiring alternating roles, so we merge text.
+                        // SDK 不方便在这里直接合并不同形式的 content。
+                        // 简单文本消息会在后面的 mergeConsecutiveSameRole 中再合并。
                     }
                 }
                 var builder = MessageParam.builder()
@@ -323,6 +348,7 @@ public class AnthropicClient implements LlmClient {
                 result.add(builder.build());
             }
         }
+        // 规范化只发生在 API 请求转换阶段，不修改内部保存的会话历史。
         return mergeConsecutiveSameRole(result);
     }
 

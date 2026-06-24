@@ -140,7 +140,12 @@ public class Agent {
         });
     }
 
+    /**
+     * Agent 主循环：每一轮把当前会话转换成一次 LLM 请求，消费流式响应，
+     * 如果模型调用了工具，就执行工具并把结果写回会话，然后进入下一轮。
+     */
     private void agentLoop(ConversationManager conv, BlockingQueue<AgentEvent> queue) {
+        // 长期记忆只在循环开始时注入一次，避免每轮请求重复塞入同一份上下文。
         conv.injectLongTermMemory(instructions, memoryContent);
 
         int totalInput = 0, totalOutput = 0;
@@ -160,16 +165,15 @@ public class Agent {
 
             if (Thread.currentThread().isInterrupted()) break;
 
-            // Drain background task notifications and inject as system reminders
+            // 拉取后台任务通知，并作为 system-reminder 注入到下一次模型请求中。
             if (notificationFn != null) {
                 for (String note : notificationFn.get()) {
                     conv.addSystemReminder(note);
                 }
             }
 
-            // Compute the tool schemas once per iteration so the recovery
-            // attachment (when compact fires) and the Stream call below see
-            // the same set. Skill filters can only change between iterations.
+            // 每轮固定一次工具 schema，保证后面的压缩恢复信息和 LLM 请求使用同一组工具。
+            // skill 过滤器只允许在两轮之间改变，不在单轮内部漂移。
             var iterToolSchemas = registry.getAllSchemas(protocol);
             if (toolNameFilter != null) {
                 iterToolSchemas = iterToolSchemas.stream()
@@ -190,7 +194,7 @@ public class Agent {
                 } catch (Exception ignored) {}
             }
 
-            // Auto-compact check
+            // 自动压缩检查：如果上下文接近窗口上限，先把旧历史压成摘要再继续请求模型。
             try {
                 String wd = workDir != null ? workDir : System.getProperty("user.dir");
                 int sizeBefore = conv.size();
@@ -201,15 +205,14 @@ public class Agent {
                 if (compactMsg != null && !compactMsg.isEmpty()) {
                     putSafe(queue, new AgentEvent.CompactEvent(compactMsg));
                 }
-                // A Layer 2 compaction collapses the conversation, so the prior
-                // anchor (counted against the old message list) no longer aligns;
-                // drop it and let the next stream re-anchor on real usage.
+                // 二层压缩会重写会话列表，旧的 token 锚点已经对不上新的消息位置，
+                // 需要清空并等待下一次真实 usage 重新建立锚点。
                 if (conv.size() < sizeBefore) {
                     usageAnchor = null;
                 }
             } catch (Exception ignored) {}
 
-            // Inject deferred tool names as system reminder
+            // 延迟加载工具只注入名称提示，等模型显式使用 ToolSearch 后再加载完整 schema。
             var deferredNames = registry.getDeferredToolNames();
             if (!deferredNames.isEmpty()) {
                 var sb = new StringBuilder();
@@ -222,7 +225,7 @@ public class Agent {
                 conv.addSystemReminder(sb.toString());
             }
 
-            // Plan mode: inject structured workflow reminder
+            // Plan 模式下，每轮都补充计划文件路径和当前审批流程提示。
             if (checker != null && checker.getMode() == PermissionMode.PLAN) {
                 String wd = workDir != null ? workDir : System.getProperty("user.dir");
                 String planPath = PlanFile.getOrCreatePlanPath(wd);
@@ -232,29 +235,23 @@ public class Agent {
                 conv.addSystemReminder(reminder);
             }
 
-            // Reuse the schema list computed at the top of the iteration so
-            // both the recovery attachment and the LLM call agree on what's
-            // wired up.
+            // 复用本轮开头算好的工具列表，避免压缩恢复和模型请求看到不同工具集。
             var tools = iterToolSchemas;
-            // Layer 1: apply tool-result budget. Returns a fresh
-            // ConversationManager with replacements baked in; `conv` is
-            // never mutated. All writes that happened earlier this iteration
-            // (system reminders, plan-mode reminders, deferred-tool notices)
-            // are reflected in apiConv because Apply rebuilds the manager
-            // from conv.getMessages().
+            // 一层裁剪：为本次 API 请求生成带 tool_result 替换结果的临时会话。
+            // 这里不修改原始 conv；前面注入的 reminder 会通过重建 apiConv 一并带入。
             Path sessionDir = Paths.get(workDir == null ? "." : workDir, ".mewcode/session");
             ApplyResult applied = ToolResultBudget.apply(conv, sessionDir, replacementState);
             if (!applied.newRecords().isEmpty()) {
                 try {
                     ReplacementRecordsIO.append(sessionDir, applied.newRecords());
                 } catch (Exception ignored) {
-                    // Best-effort transcript persistence; in-memory state is
-                    // authoritative for this process lifetime.
+                    // 会话记录持久化是 best-effort；当前进程里以内存状态为准。
                 }
             }
+            // 真正发起模型流式请求。具体 API 格式转换发生在各 LlmClient 内部。
             var streamQueue = client.stream(applied.apiConv(), tools);
 
-            // Consume stream events, collect tool calls
+            // 消费统一的 StreamEvent：一边转发给 UI，一边收集最终要写入会话的内容。
             var text = new StringBuilder();
             var thinkingBlocks = new ArrayList<ThinkingBlock>();
             var toolCalls = new ArrayList<ToolCallInfo>();
@@ -313,7 +310,7 @@ public class Agent {
                 if (event instanceof StreamEvent.StreamEnd || event instanceof StreamEvent.Error) break;
             }
 
-            // Error recovery
+            // 流式请求失败后的恢复：上下文过长优先强制压缩，限流则短暂等待后重试。
             if (streamError) {
                 var lastErr = events_drain_last_error(queue);
                 if (lastErr != null && (lastErr.contains("context") || lastErr.contains("too long")
@@ -335,9 +332,7 @@ public class Agent {
                                     recoveryState, iterToolSchemas,
                                     forceApplied.apiConv().getMessages());
                         } catch (Exception ignored) {}
-                        // forceCompact shrinks the conversation (summary + kept
-                        // tail), so the prior anchor's message count no longer
-                        // lines up; drop it and re-anchor on the next stream.
+                        // forceCompact 会把历史改成“摘要 + 保留尾部”，旧锚点失效。
                         if (conv.size() < sizeBeforeForce) {
                             usageAnchor = null;
                         }
@@ -356,7 +351,7 @@ public class Agent {
             totalOutput += turnOutput;
             putSafe(queue, new AgentEvent.UsageEvent(totalInput, totalOutput));
 
-            // Max tokens handling
+            // 输出被 max_tokens 截断时，先提升输出上限并让模型从中断处续写。
             if ("max_tokens".equals(stopReason)) {
                 if (!maxTokensEscalated) {
                     maxTokensEscalated = true;
@@ -375,54 +370,46 @@ public class Agent {
                             "max_tokens recovery %d/%d".formatted(outputRecoveries, MAX_OUTPUT_RECOVERIES), 0));
                     continue;
                 }
-                // Exhausted: fall through to normal completion
+                // 重试次数耗尽后，保留当前已生成内容，按普通完成流程继续。
             } else {
                 outputRecoveries = 0;
             }
 
-            // Save assistant message to conversation
+            // 本轮模型响应结束后，才把 assistant 文本、thinking 和 tool_use 写入会话历史。
             var toolUseBlocks = toolCalls.stream()
                     .map(tc -> new ToolUseBlock(tc.toolId, tc.toolName, tc.args))
                     .toList();
             conv.addAssistantFull(text.toString(), thinkingBlocks, toolUseBlocks);
 
-            // Re-anchor the compaction estimate on this turn's real usage. The
-            // baseline = input + cacheRead + cacheCreation + output covers the
-            // sent context and the assistant message just appended; messages
-            // added after this point (tool results, next user turn) are
-            // estimated incrementally on top. A cache hit reports a small real
-            // input, so the anchor tracks the true window far better than the
-            // raw character estimate.
+            // 用本轮 API 返回的真实 usage 重新建立压缩估算锚点。
+            // 后续追加的 tool_result 或用户消息会在这个基准上增量估算。
             if (turnInput > 0 || turnOutput > 0 || turnCacheRead > 0 || turnCacheCreation > 0) {
                 int baseline = turnInput + turnCacheRead + turnCacheCreation + turnOutput;
                 usageAnchor = new com.mewcode.compact.ContextCompactor.UsageAnchor(
                         baseline, conv.size());
             }
 
-            // No tool calls → done
+            // 没有工具调用说明本轮已经给出最终回答，Agent 循环结束。
             if (toolCalls.isEmpty()) {
                 if (fileHistory != null) {
                     String summary = text.length() > 60 ? text.substring(0, 60) + "..." : text.toString();
                     fileHistory.makeSnapshot(conv.size(), summary);
                 }
-                // No TurnComplete on the terminal (no-tool) turn — aligning Go
-                // (agent.go emits only LoopComplete here). The TUI's TurnComplete
-                // handler flushes+clears streamBuf without persisting; if we emitted
-                // it first, LoopComplete would see an empty buffer and the final
-                // assistant message would never be saved to the session file.
+                // 终止轮不发送 TurnComplete，只发送 LoopComplete。
+                // TUI 在 TurnComplete 时会清空流缓冲，提前发送会导致最终回答无法落盘。
                 putSafe(queue, new AgentEvent.LoopComplete(iteration));
                 loopCompleted = true;
                 break;
             }
 
-            // Execute tool calls
+            // 有工具调用时，执行工具；只读工具可并发，写/命令类工具由 StreamingExecutor 控制顺序。
             var executor = new StreamingExecutor(registry, checker, hookEngine, queue, recoveryState);
             var callInfos = toolCalls.stream()
                     .map(tc -> new StreamingExecutor.ToolCallInfo(tc.toolId, tc.toolName, tc.args))
                     .toList();
             var results = executor.executeAll(callInfos);
 
-            // Add results to conversation
+            // 工具结果作为一条内部 user 消息写回，下一轮请求时再由协议适配器转换。
             var resultBlocks = results.stream()
                     .map(r -> new ToolResultBlock(r.toolId(), r.output(), r.isError()))
                     .toList();
