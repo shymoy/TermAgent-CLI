@@ -19,6 +19,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 用户问答工具：把模型生成的结构化问题交给 UI 展示，并等待用户选择或输入答案。
+ *
+ * <p>工具线程和 UI 通过 AgentEvent 队列及 CompletableFuture 配合：工具发送请求事件，
+ * UI 收到事件后展示对话框，并用用户答案完成 future，工具随后把答案返回给模型。</p>
+ */
 public class AskUserTool implements Tool {
 
     private static final String DESCRIPTION = """
@@ -31,6 +37,7 @@ public class AskUserTool implements Tool {
             Each question has 2-4 options. An "Other" option for custom input is automatically provided.
             Use multiSelect: true when choices are not mutually exclusive.""";
 
+    // 与 Agent/UI 共用的事件队列，用于把问答请求从工具执行线程发送到界面层。
     private BlockingQueue<AgentEvent> eventQueue;
 
     public void setEventQueue(BlockingQueue<AgentEvent> queue) {
@@ -52,11 +59,15 @@ public class AskUserTool implements Tool {
         return ToolCategory.READ;
     }
 
+    /** 问答工具默认延迟暴露，需要模型先通过 ToolSearch 发现其完整 schema。 */
     @Override
     public boolean shouldDefer() {
         return true;
     }
 
+    /**
+     * 构造嵌套问题 schema：一次调用包含 1～4 个问题，每个问题包含 2～4 个选项。
+     */
     @Override
     public Map<String, Object> schema() {
         var optionProperties = new LinkedHashMap<String, Object>();
@@ -108,6 +119,7 @@ public class AskUserTool implements Tool {
     @Override
     @SuppressWarnings("unchecked")
     public ToolResult execute(Map<String, Object> args) {
+        // 未注入队列时无法把问题送到 UI，应直接返回配置错误，避免永久等待。
         if (eventQueue == null) {
             return ToolResult.error("AskUser tool not wired to event queue");
         }
@@ -117,6 +129,7 @@ public class AskUserTool implements Tool {
             return ToolResult.error("No questions provided");
         }
 
+        // 将模型传入的通用 Map 结构转换成 UI 对话框使用的强类型问题对象。
         var questions = new ArrayList<AskUserDialog.Question>();
         for (var rq : rawQuestions) {
             String text = (String) rq.get("question");
@@ -135,6 +148,7 @@ public class AskUserTool implements Tool {
             questions.add(new AskUserDialog.Question(text, header, options, multiSelect));
         }
 
+        // future 同时交给 UI：UI 提交答案时完成它，当前工具线程在下方等待结果。
         var future = new CompletableFuture<Map<String, String>>();
         try {
             eventQueue.put(new AgentEvent.AskUserRequestEvent(questions, future));
@@ -145,6 +159,7 @@ public class AskUserTool implements Tool {
 
         Map<String, String> answers;
         try {
+            // 最多等待五分钟，防止用户离开后工具执行线程无限阻塞。
             answers = future.get(5, TimeUnit.MINUTES);
         } catch (Exception e) {
             return ToolResult.error("User did not respond in time");
@@ -154,6 +169,7 @@ public class AskUserTool implements Tool {
             return ToolResult.error("User declined to answer");
         }
 
+        // 把 UI 返回的结构化答案整理成模型可以直接理解的文本工具结果。
         var sb = new StringBuilder();
         sb.append("User answers:\n");
         for (var entry : answers.entrySet()) {

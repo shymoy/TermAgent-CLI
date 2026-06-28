@@ -17,8 +17,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 文件读取工具：根据模型提供的路径和行范围读取文件，并返回带行号的文本。
+ * 该工具属于只读类别，因此同一批次中的多个 ReadFile 调用可以并行执行。
+ */
 public class ReadFileTool implements Tool {
 
+    // 读取成功后记录文件状态，供后续 EditFile/WriteFile 做并发修改检查。
     private FileStateCache fileStateCache;
 
     public void setFileStateCache(FileStateCache c) { this.fileStateCache = c; }
@@ -49,6 +54,9 @@ public class ReadFileTool implements Tool {
         return ToolCategory.READ;
     }
 
+    /**
+     * 定义提供给模型的参数契约。模型会根据该 schema 生成 file_path、offset 和 limit。
+     */
     @Override
     public Map<String, Object> schema() {
         return Map.of(
@@ -66,6 +74,9 @@ public class ReadFileTool implements Tool {
         );
     }
 
+    /**
+     * 执行实际的文件读取。这里仍需校验模型传入的参数，不能只依赖 schema 描述。
+     */
     @Override
     public ToolResult execute(Map<String, Object> args) {
         String filePath = stringArg(args, "file_path", "");
@@ -103,16 +114,17 @@ public class ReadFileTool implements Tool {
             end = lines.length;
         }
 
-        // Record in file-state cache so EditFile/WriteFile know the file has been read
+        // 保存本次读取时的内容和修改时间，让后续写入工具识别文件是否已被外部修改。
         if (fileStateCache != null) {
             try {
                 long mtime = Files.getLastModifiedTime(path).toMillis();
                 fileStateCache.record(path.toAbsolutePath().toString(), content, mtime);
             } catch (IOException ignored) {
-                // best-effort: don't fail the read because of mtime lookup
+                // 状态缓存是辅助校验，获取修改时间失败不应影响本次读取结果。
             }
         }
 
+        // 只格式化请求范围内的内容，并使用从 1 开始的行号返回给模型。
         var sb = new StringBuilder();
         for (int i = offset; i < end; i++) {
             if (i > offset) {

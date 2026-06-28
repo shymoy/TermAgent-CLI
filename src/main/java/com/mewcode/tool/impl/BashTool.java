@@ -17,8 +17,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Shell 命令执行工具：使用 bash 执行模型生成的命令，并返回合并后的标准输出和错误输出。
+ *
+ * <p>该工具属于命令类别，可能修改文件或系统状态，因此 StreamingExecutor 会将其放入
+ * 独立的串行批次。配置了可用沙箱时，命令会先经过沙箱包装再执行。</p>
+ */
 public class BashTool implements Tool {
 
+    /** 单次命令允许的最大超时时间，单位为秒。 */
     private static final int MAX_TIMEOUT = 600;
 
     // 特殊命令 exit code 1 的语义提示（grep 没匹配到、diff 文件有差异等）
@@ -91,6 +98,7 @@ public class BashTool implements Tool {
         return ToolCategory.COMMAND;
     }
 
+    /** 定义提供给模型的命令和超时参数，其中 command 为必填项。 */
     @Override
     public Map<String, Object> schema() {
         return Map.of(
@@ -107,6 +115,9 @@ public class BashTool implements Tool {
         );
     }
 
+    /**
+     * 执行命令：校验参数、限制超时时间、按需包装沙箱、启动进程并整理执行结果。
+     */
     @Override
     public ToolResult execute(Map<String, Object> args) {
         String command = stringArg(args, "command", "");
@@ -115,6 +126,7 @@ public class BashTool implements Tool {
         }
 
         int timeout = intArg(args, "timeout", 120);
+        // 模型传入过大的超时时间时强制收敛到上限，避免命令长期占用执行线程。
         if (timeout > MAX_TIMEOUT) {
             timeout = MAX_TIMEOUT;
         }
@@ -126,6 +138,7 @@ public class BashTool implements Tool {
                 actualCommand = sandbox.wrap(command, sandboxConfig);
             }
 
+            // 每次调用都会创建新的 bash 进程，因此环境变量、cd 等 shell 状态不会跨调用保留。
             ProcessBuilder pb = new ProcessBuilder("bash", "-c", actualCommand);
             // 合并 stdout 和 stderr 到同一个流，与 Claude Code 行为一致
             pb.redirectErrorStream(true);
@@ -145,6 +158,7 @@ public class BashTool implements Tool {
 
             boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
             if (!finished) {
+                // 超时后强制终止子进程，并把超时作为工具级错误返回给模型。
                 process.destroyForcibly();
                 return ToolResult.error("Error: command timed out after " + timeout + "s");
             }
@@ -159,7 +173,7 @@ public class BashTool implements Tool {
                 }
             }
 
-            // 非零 exit code 时附加退出码信息，但不设置 isError
+            // 非零 exit code 是命令本身的执行结果，不等同于工具框架异常，因此只附加退出码。
             if (exitCode != 0) {
                 sb.append("Exit code ").append(exitCode);
                 // 对特殊命令附加语义提示

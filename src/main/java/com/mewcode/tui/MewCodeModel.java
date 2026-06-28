@@ -59,10 +59,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Main TUI model for MewCode, implementing the Bubble Tea Model interface.
- * <p>
- * P1 MVP: provider selection + streaming chat.
- * Uses a simple inputBuffer with manual key handling (Textarea component deferred to P3).
+ * MewCode 的终端 UI 状态模型，也是界面层与 Agent 之间的协调器。
+ *
+ * <p>该类按照 Bubble Tea 的 Model 模式工作：{@link #update(Message)} 消费键盘、窗口和
+ * Agent 事件并更新状态，{@link #view()} 根据当前状态生成界面，异步任务则通过 Command
+ * 和事件队列把结果送回 UI 循环。</p>
+ *
+ * <p>它还负责在用户选择模型后组装 LLM 客户端、工具注册中心、权限检查器、会话管理器
+ * 以及 Agent。具体的模型调用和工具执行仍由 Agent 与 StreamingExecutor 完成。</p>
  */
 public class MewCodeModel implements Model {
 
@@ -290,18 +294,12 @@ public class MewCodeModel implements Model {
         };
     }
 
-    /**
-     * Stores a reference to the running Program so we can send messages from
-     * background threads (e.g., the streaming poller).
-     */
+    /** 保存正在运行的 Program，使后台线程能够向 UI 事件循环发送消息。 */
     public void setProgram(Program program) {
         this.program = program;
     }
 
-    /**
-     * Called from the SIGINT handler. If streaming, interrupts the response;
-     * otherwise sends a QuitMessage to exit the application.
-     */
+    /** 处理 Ctrl+C：生成中时保存部分响应，空闲时通知程序退出。 */
     public void handleSigint() {
         if (streaming) {
             savePartialResponse();
@@ -319,11 +317,16 @@ public class MewCodeModel implements Model {
     // Model interface
     // ────────────────────────────────────────────────────────────────────
 
+    /** 首次启动时请求终端尺寸，收到尺寸前暂不渲染界面。 */
     @Override
     public Command init() {
         return Command.checkWindowSize();
     }
 
+    /**
+     * UI 的统一消息入口。先处理全局事件和活动中的对话框，再按 AppState
+     * 把键盘事件分发给模型选择、聊天或会话恢复页面。
+     */
     @Override
     public UpdateResult<? extends Model> update(Message msg) {
         if (pendingSingleProviderInit) {
@@ -441,6 +444,7 @@ public class MewCodeModel implements Model {
         return UpdateResult.from(this);
     }
 
+    /** 根据当前应用状态选择对应视图；该方法只渲染状态，不执行耗时业务。 */
     @Override
     public String view() {
         if (!ready) return "";
@@ -478,6 +482,10 @@ public class MewCodeModel implements Model {
         };
     }
 
+    /**
+     * 用户选定模型后组装一次会话需要的运行组件：客户端、工具、权限、
+     * 文件状态、Agent、MCP 和技能。初始化完成后，聊天页只需驱动 Agent。
+     */
     private void initializeProvider() {
         try {
             String workDir = System.getProperty("user.dir");
@@ -508,13 +516,13 @@ public class MewCodeModel implements Model {
             agentToolRef.setTaskManager(subAgentTaskManager);
             registry.register(agentToolRef);
 
-            // Worktree tools and integration
+            // 注册 Worktree 工具，并把同一个管理器交给子 Agent 使用。
             var worktreeManager = new com.mewcode.worktree.WorktreeManager(
                     workDir, java.util.List.of(), 720);
             agentToolRef.setWorktreeManager(worktreeManager);
             registry.register(new com.mewcode.tool.impl.EnterWorktreeTool(worktreeManager, sessionId));
             registry.register(new com.mewcode.tool.impl.ExitWorktreeTool(worktreeManager));
-            // Restore session from previous crash
+            // 恢复上次异常退出时遗留的 Worktree 会话。
             var savedSession = com.mewcode.worktree.WorktreeSessionStore.load(workDir);
             if (savedSession != null && java.nio.file.Files.isDirectory(java.nio.file.Path.of(savedSession.worktreePath()))) {
                 com.mewcode.worktree.WorktreeSessionStore.restoreSession(savedSession);
@@ -526,7 +534,7 @@ public class MewCodeModel implements Model {
             registry.register(new TaskTools.TaskListTool(taskList));
             registry.register(new TaskTools.TaskUpdateTool(taskList));
 
-            // Team tools (ch15)
+            // 注册团队协作工具。
             agentToolRef.setTeamManager(teamManager);
             registry.register(new com.mewcode.teams.TeamTools.TeamCreateTool(teamManager));
             registry.register(new com.mewcode.teams.TeamTools.TeamDeleteTool(teamManager));
@@ -557,6 +565,7 @@ public class MewCodeModel implements Model {
             // 启动时清理超过 30 天的过期 session 文件
             com.mewcode.session.SessionManager.cleanExpiredSessions(workDir);
             fileHistory = new com.mewcode.filehistory.FileHistory(workDir, sessionId);
+            // 三个文件工具共享同一个状态缓存，形成 ReadFile 记录、Edit/Write 校验并刷新的闭环。
             var fileStateCache = new com.mewcode.tool.FileStateCache();
             for (var t : registry.listTools()) {
                 if (t instanceof com.mewcode.tool.impl.EditFileTool ef) { ef.setFileHistory(fileHistory); ef.setFileStateCache(fileStateCache); }
@@ -571,13 +580,13 @@ public class MewCodeModel implements Model {
             agent.setWorkDir(workDir);
             agent.setSessionId(sessionId);
 
-            // Team notification drain: team mailbox + sub-agent task notifications
+            // 每轮请求前提取团队邮箱和后台子任务通知，并作为 reminder 注入 Agent。
             final var teamMgrCapture = teamManager;
             agent.setNotificationFn(() -> {
                 var notes = new java.util.ArrayList<String>();
-                // Drain team mailbox (ch15)
+                // 提取团队成员发给主 Agent 的消息。
                 notes.addAll(com.mewcode.teams.TeammateRunner.drainLeadMailbox(teamMgrCapture));
-                // Drain background task notifications (ch13)
+                // 提取后台子任务的完成通知。
                 if (subAgentTaskManager != null) {
                     for (var n : subAgentTaskManager.drainNotifications()) {
                         notes.add("<task-notification>Task %s: %s (%s)</task-notification>"
@@ -587,7 +596,7 @@ public class MewCodeModel implements Model {
                 return notes;
             });
 
-            // Coordinator mode: restrict Lead's tools when teams exist
+            // 存在团队时，主 Agent 只保留协调器允许使用的工具。
             agent.setToolNameFilter(name -> {
                 if (teamMgrCapture.listTeams().isEmpty()) return true;
                 return com.mewcode.teams.Coordinator.isCoordinatorTool(name);
@@ -1225,6 +1234,10 @@ public class MewCodeModel implements Model {
         }
     }
 
+    /**
+     * 提交输入框中的用户消息：同步更新界面和内部会话，创建 AgentEvent 队列，
+     * 再让 Agent 在后台运行；UI 通过定时消息持续轮询该队列，不阻塞按键和渲染。
+     */
     private UpdateResult<MewCodeModel> sendUserMessage() {
         String userText = inputBuffer.toString().trim();
         inputBuffer.setLength(0);
@@ -1255,7 +1268,7 @@ public class MewCodeModel implements Model {
             mcpInstructionsOk = true;
         }
 
-        // Start memory recall prefetch — runs in a virtual thread with 8s timeout.
+        // 提前在虚拟线程中检索相关记忆，最多等待 8 秒，但不阻塞本次消息发送。
         var prefetchFuture = prefetchRelevantMemories(userText);
 
         if (agent == null) {
@@ -1293,9 +1306,13 @@ public class MewCodeModel implements Model {
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // Streaming event processing
+    // Agent 流式事件处理
     // ────────────────────────────────────────────────────────────────────
 
+    /**
+     * 批量消费 AgentEvent 队列并转换成 UI 状态。
+     * 文本增量进入 streamBuf，工具事件更新工具块，LoopComplete 负责结束轮询并提交本轮内容。
+     */
     private UpdateResult<MewCodeModel> handleAgentEvents() {
         drainSubAgentProgress();
 
