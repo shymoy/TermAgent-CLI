@@ -5,10 +5,15 @@ import java.util.Map;
 
 public class ProviderConfig {
 
+    public static final String DEEPSEEK_PROTOCOL = "deepseek";
+    public static final String DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com";
+    public static final String DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-pro";
+
     private static final Map<String, String> ENV_KEY_MAP = Map.of(
             "anthropic", "ANTHROPIC_API_KEY",
             "openai", "OPENAI_API_KEY",
-            "openai-compat", "OPENAI_API_KEY"
+            "openai-compat", "OPENAI_API_KEY",
+            DEEPSEEK_PROTOCOL, "DEEPSEEK_API_KEY"
     );
 
     private String name;
@@ -17,6 +22,7 @@ public class ProviderConfig {
     private String model;
     private String apiKey;
     private boolean thinking;
+    private String reasoningEffort;
 
     private int contextWindow;
     private int maxOutputTokens;
@@ -48,6 +54,9 @@ public class ProviderConfig {
 
     public boolean isThinking() { return thinking; }
     public void setThinking(boolean thinking) { this.thinking = thinking; }
+
+    public String getReasoningEffort() { return reasoningEffort; }
+    public void setReasoningEffort(String reasoningEffort) { this.reasoningEffort = reasoningEffort; }
 
     public int getContextWindow() { return contextWindow; }
 
@@ -105,6 +114,8 @@ public class ProviderConfig {
         if (m.contains("gpt-4o")) return 128_000;
         if (m.contains("gpt-4-turbo")) return 128_000;
         if (m.contains("o1") || m.contains("o3") || m.contains("o4")) return 200_000; // OpenAI reasoning models
+        if (m.contains("deepseek-v4")) return 1_000_000;
+        if (m.contains("deepseek-chat") || m.contains("deepseek-reasoner")) return 1_000_000;
         if (m.contains("gpt-3.5")) return 16_385;
         if (m.contains("claude")) return 200_000;
         return 128_000; // conservative default

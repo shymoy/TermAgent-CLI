@@ -20,6 +20,7 @@ public interface LlmClient {
             case "anthropic" -> new AnthropicClient(cfg, systemPrompt);
             case "openai" -> new OpenAiClient(cfg, systemPrompt);
             case "openai-compat" -> new OpenAiCompatClient(cfg, systemPrompt);
+            case "deepseek" -> new DeepSeekClient(cfg, systemPrompt);
 
             default -> throw new IllegalArgumentException("Unknown protocol: " + cfg.getProtocol());
         };

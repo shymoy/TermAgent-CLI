@@ -16,7 +16,8 @@ import java.util.Set;
 
 public class ConfigLoader {
 
-    private static final Set<String> VALID_PROTOCOLS = Set.of("anthropic", "openai", "openai-compat");
+    private static final Set<String> VALID_PROTOCOLS = Set.of(
+            "anthropic", "openai", "openai-compat", ProviderConfig.DEEPSEEK_PROTOCOL);
 
     public static AppConfig load(String path) throws ConfigException {
         if (path != null && !path.isEmpty()) {
@@ -122,6 +123,7 @@ public class ConfigLoader {
     private static void validate(AppConfig cfg) throws ConfigException {
         for (int i = 0; i < cfg.getProviders().size(); i++) {
             var p = cfg.getProviders().get(i);
+            applyProviderDefaults(p);
             var missing = new ArrayList<String>();
 
             if (isBlank(p.getName())) missing.add("name");
@@ -137,10 +139,20 @@ public class ConfigLoader {
 
             if (!VALID_PROTOCOLS.contains(p.getProtocol())) {
                 throw new ConfigException(
-                        "Provider #%d: invalid protocol '%s', must be one of: anthropic, openai, openai-compat"
+                        ("Provider #%d: invalid protocol '%s', must be one of: " + String.join(", ", VALID_PROTOCOLS))
                                 .formatted(i + 1, p.getProtocol())
                 );
             }
+        }
+    }
+
+    private static void applyProviderDefaults(ProviderConfig p) {
+        if (!ProviderConfig.DEEPSEEK_PROTOCOL.equals(p.getProtocol())) return;
+        if (isBlank(p.getBaseUrl())) {
+            p.setBaseUrl(ProviderConfig.DEEPSEEK_DEFAULT_BASE_URL);
+        }
+        if (isBlank(p.getModel())) {
+            p.setModel(ProviderConfig.DEEPSEEK_DEFAULT_MODEL);
         }
     }
 

@@ -38,7 +38,7 @@ public class OpenAiCompatClient implements LlmClient {
     private final HttpClient httpClient;
     private final String baseUrl;
     private final String apiKey;
-    private final String model;
+    protected final String model;
     private final String systemPrompt;
     private volatile int maxOutputTokens;
 
@@ -46,8 +46,8 @@ public class OpenAiCompatClient implements LlmClient {
         String key = cfg.resolvedApiKey();
         if (key.isEmpty()) {
             throw new LlmException.AuthenticationException(
-                    "API key not found for openai-compat provider '" + cfg.getName()
-                            + "'. Set it in .mewcode/config.yaml or via OPENAI_API_KEY env var.");
+                    "API key not found for " + cfg.getProtocol() + " provider '" + cfg.getName()
+                            + "'. Set it in .mewcode/config.yaml or via the provider API key env var.");
         }
         this.apiKey = key;
         this.baseUrl = cfg.getBaseUrl().replaceAll("/+$", "");
@@ -322,7 +322,7 @@ public class OpenAiCompatClient implements LlmClient {
     // Request body building
     // ------------------------------------------------------------------
 
-    private String buildRequestBody(List<Message> messages, List<Map<String, Object>> tools)
+    String buildRequestBody(List<Message> messages, List<Map<String, Object>> tools)
             throws JsonProcessingException {
         ObjectNode root = MAPPER.createObjectNode();
         root.put("model", model);
@@ -342,7 +342,20 @@ public class OpenAiCompatClient implements LlmClient {
             root.set("tools", buildToolsArray(tools));
         }
 
+        customizeRequestBody(root);
+
         return MAPPER.writeValueAsString(root);
+    }
+
+    protected void customizeRequestBody(ObjectNode root) {
+    }
+
+    protected boolean includeReasoningContent() {
+        return true;
+    }
+
+    protected boolean requireAssistantContentForToolCalls() {
+        return false;
     }
 
     @SuppressWarnings("unchecked")
@@ -376,10 +389,12 @@ public class OpenAiCompatClient implements LlmClient {
                 node.put("role", "assistant");
                 if (msg.getContent() != null && !msg.getContent().isEmpty()) {
                     node.put("content", msg.getContent());
+                } else if (requireAssistantContentForToolCalls()) {
+                    node.put("content", "");
                 } else {
                     node.putNull("content");
                 }
-                if (!reasoning.isEmpty()) {
+                if (!reasoning.isEmpty() && includeReasoningContent()) {
                     node.put("reasoning_content", reasoning);
                 }
 
@@ -413,7 +428,7 @@ public class OpenAiCompatClient implements LlmClient {
                 ObjectNode node = MAPPER.createObjectNode();
                 node.put("role", msg.getRole());
                 node.put("content", msg.getContent() != null ? msg.getContent() : "");
-                if (!reasoning.isEmpty()) {
+                if (!reasoning.isEmpty() && includeReasoningContent()) {
                     node.put("reasoning_content", reasoning);
                 }
                 arr.add(node);
