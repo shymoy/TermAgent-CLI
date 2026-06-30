@@ -1,0 +1,148 @@
+<mxfile host="app.diagrams.net" modified="2026-06-26T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="llm-api-conversation-flow" name="LLM API 与对话管理流程">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="LLM API 与对话管理器：主流程" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#1f2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="420" y="30" width="760" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="主线：Message/history 保存内部会话；LlmClient 屏蔽 API 差异；AgentLoop 消费 StreamEvent 并决定是否进入工具回路。" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;fontColor=#4b5563;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="260" y="72" width="1080" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="init-band" value="启动/初始化阶段" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f9fafb;strokeColor=#cbd5e1;dashed=1;fontSize=14;fontStyle=1;fontColor=#475569;align=left;spacingLeft=14;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="115" width="1460" height="115" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="init-config" value="读取 ProviderConfig&#xa;protocol / model / apiKey / baseUrl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cbd5e1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="190" y="150" width="230" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="init-client" value="LlmClient.create(...)&#xa;按 protocol 创建具体客户端" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="510" y="150" width="230" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="init-agent" value="创建 Agent&#xa;注入 client / tools / providerConfig" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf2ff;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="830" y="150" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="init-client-types" value="可能创建：AnthropicClient / OpenAiClient / OpenAiCompatClient / DeepSeekClient" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="150" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="main-label" value="一次用户请求 / 一轮或多轮 Agent 循环" style="text;html=1;strokeColor=none;fillColor=none;fontSize=16;fontStyle=1;fontColor=#334155;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="255" width="360" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="input" value="1. 用户输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#82b366;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="325" width="170" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="history" value="2. ConversationManager&#xa;history: List&lt;Message&gt;&#xa;&#xa;内部 Message 保存：&#xa;role / content / thinkingBlocks&#xa;toolUses / toolResults" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#82b366;fontSize=14;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="315" y="300" width="250" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="agent-loop" value="3. AgentLoop&#xa;&#xa;准备本轮上下文：&#xa;tools schema&#xa;memory / reminder&#xa;compact / budget" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf2ff;strokeColor=#6c8ebf;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="630" y="300" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="stream" value="4. client.stream(...)&#xa;&#xa;统一入口：Agent 只调用接口&#xa;&#xa;具体实现进入 doStream(...)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9673a6;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="920" y="300" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="dostream" value="5. doStream(...)&#xa;&#xa;内部 Message → API Message&#xa;发送请求&#xa;接收 API 流式响应&#xa;翻译成 StreamEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9673a6;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="1230" y="300" width="250" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="events" value="6. StreamEvent&#xa;&#xa;TextDelta：文本增量&#xa;ThinkingComplete：思考块完成&#xa;ToolCallComplete：工具参数完整&#xa;StreamEnd：本轮结束 + usage&#xa;Error：请求异常" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#d6b656;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="735" y="510" width="310" height="155" as="geometry"/>
+        </mxCell>
+        <mxCell id="consume" value="7. Agent 消费事件&#xa;&#xa;拼接文本&#xa;保存 thinking&#xa;收集 tool call&#xa;记录 stopReason / usage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf2ff;strokeColor=#6c8ebf;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="525" width="230" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="write-assistant" value="8. 先写回 assistant Message&#xa;&#xa;content = 文本&#xa;thinkingBlocks = thinking&#xa;toolUses = 模型发起的工具调用" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#82b366;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="315" y="525" width="270" height="125" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tool-loop" value="工具回路：仅当 assistant Message 中有 toolUses" style="text;html=1;strokeColor=none;fillColor=none;fontSize=16;fontStyle=1;fontColor=#92400e;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="640" y="700" width="420" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="tool" value="9. StreamingExecutor 执行工具&#xa;&#xa;根据 toolName + arguments 调用工具&#xa;得到 ToolResultBlock&#xa;addToolResultsMessage(...)&#xa;追加 role=&quot;user&quot; + toolResults&#xa;然后进入下一轮 AgentLoop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#d79b00;fontSize=14;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="650" y="735" width="370" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="Anthropic 工具协议：assistant → tool_use；user → tool_result block。&#xa;项目内部没有单独 TOOL role，工具结果保存为 role=&quot;user&quot; + toolResults。" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fef3c7;strokeColor=#d6b656;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="735" width="350" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e-init-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="init-config" target="init-client">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-init-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="init-client" target="init-agent">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-init-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="init-client" target="init-client-types">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e-main-1" value="addUserMessage" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4b5563;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#374151;" edge="1" parent="1" source="input" target="history">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-main-2" value="读取 history" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4b5563;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#374151;" edge="1" parent="1" source="history" target="agent-loop">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-main-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4b5563;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="agent-loop" target="stream">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-main-4" value="进入具体客户端" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7c3aed;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#4c1d95;" edge="1" parent="1" source="stream" target="dostream">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-main-5" value="翻译成统一流事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7c3aed;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#4c1d95;" edge="1" parent="1" source="dostream" target="events">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1355" y="470"/>
+              <mxPoint x="890" y="470"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-main-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4b5563;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="events" target="consume">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-main-7" value="本轮响应结束后" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#166534;" edge="1" parent="1" source="consume" target="write-assistant">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1130" y="690"/>
+              <mxPoint x="450" y="690"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-main-8" value="追加到 history" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#166534;" edge="1" parent="1" source="write-assistant" target="history">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="465"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-tool-1" value="如果有 ToolCallComplete" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#92400e;" edge="1" parent="1" source="consume" target="tool">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1245" y="705"/>
+              <mxPoint x="835" y="705"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-tool-2" value="tool_result 写回 history" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#92400e;" edge="1" parent="1" source="tool" target="history">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="835" y="880"/>
+              <mxPoint x="440" y="880"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-tool-3" value="下一轮继续请求模型" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=12;fontColor=#1d4ed8;" edge="1" parent="1" source="tool" target="agent-loop">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1035" y="900"/>
+              <mxPoint x="740" y="900"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

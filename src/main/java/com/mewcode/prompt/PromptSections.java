@@ -9,13 +9,18 @@ import com.mewcode.prompt.PromptBuilder.EnvironmentContext;
 import com.mewcode.prompt.PromptBuilder.Section;
 
 /**
- * Predefined prompt sections with priorities 0-95.
+ * 定义系统提示词的固定组成部分。
+ *
+ * <p>每个方法返回一个带排序编号的 {@link Section}，由 {@link PromptBuilder}
+ * 按编号从小到大拼接。编号只决定文本位置，不表示模型协议层面的指令优先级。</p>
+ *
+ * <p>提示词正文集中保存在这里，便于独立审查 Agent 的身份、行为、安全和输出规则。</p>
  */
 public final class PromptSections {
 
     private PromptSections() {}
 
-    // ── Priority 0: Identity ────────────────────────────────────────────
+    // ── 0：身份与基础安全约束 ───────────────────────────────────────────
 
     static final String IDENTITY_CONTENT = """
             You are MewCode, an AI programming assistant running in the terminal. You help users with \
@@ -32,7 +37,7 @@ public final class PromptSections {
         return new Section("Identity", 0, IDENTITY_CONTENT);
     }
 
-    // ── Priority 10: System ─────────────────────────────────────────────
+    // ── 10：系统运行规则 ────────────────────────────────────────────────
 
     static final String SYSTEM_CONTENT = """
             # System
@@ -53,7 +58,7 @@ public final class PromptSections {
         return new Section("System", 10, SYSTEM_CONTENT);
     }
 
-    // ── Priority 20: Doing Tasks ────────────────────────────────────────
+    // ── 20：任务理解与代码修改原则 ───────────────────────────────────────
 
     static final String DOING_TASKS_CONTENT = """
             # Doing tasks
@@ -98,7 +103,7 @@ public final class PromptSections {
         return new Section("DoingTasks", 20, DOING_TASKS_CONTENT);
     }
 
-    // ── Priority 30: Executing Actions ──────────────────────────────────
+    // ── 30：高风险操作与用户确认边界 ─────────────────────────────────────
 
     static final String EXECUTING_ACTIONS_CONTENT = """
             # Executing actions with care
@@ -124,7 +129,7 @@ public final class PromptSections {
         return new Section("ExecutingActions", 30, EXECUTING_ACTIONS_CONTENT);
     }
 
-    // ── Priority 40: Using Tools ────────────────────────────────────────
+    // ── 40：工具选择、并行调用和子 Agent 协作规则 ─────────────────────────
 
     static final String USING_TOOLS_CONTENT = """
             # Using your tools
@@ -165,7 +170,7 @@ public final class PromptSections {
         return new Section("UsingTools", 40, USING_TOOLS_CONTENT);
     }
 
-    // ── Priority 50: Tone & Style ───────────────────────────────────────
+    // ── 50：回复语气与格式 ──────────────────────────────────────────────
 
     static final String TONE_STYLE_CONTENT = """
             # Tone and style
@@ -180,7 +185,7 @@ public final class PromptSections {
         return new Section("ToneStyle", 50, TONE_STYLE_CONTENT);
     }
 
-    // ── Priority 60: Output Efficiency ──────────────────────────────────
+    // ── 60：过程更新与最终输出的精简规则 ──────────────────────────────────
 
     static final String OUTPUT_EFFICIENCY_CONTENT = """
             # Text output (does not apply to tool calls)
@@ -206,8 +211,9 @@ public final class PromptSections {
         return new Section("TextOutput", 60, OUTPUT_EFFICIENCY_CONTENT);
     }
 
-    // ── Priority 70: Environment ────────────────────────────────────────
+    // ── 70：当前运行环境 ────────────────────────────────────────────────
 
+    /** 将结构化环境快照转换为模型可读取的 Markdown 文本。 */
     public static Section environmentSection(EnvironmentContext env) {
         var sb = new StringBuilder();
         sb.append("# Environment\n");
@@ -215,6 +221,7 @@ public final class PromptSections {
         sb.append(" - Platform: ").append(env.os()).append('/').append(env.arch()).append('\n');
         sb.append(" - Shell: ").append(env.shell()).append('\n');
         sb.append(" - Is git repo: ").append(env.isGitRepo());
+        // 非 Git 仓库没有有效分支，避免输出无意义的空字段。
         if (env.isGitRepo() && env.gitBranch() != null && !env.gitBranch().isEmpty()) {
             sb.append('\n').append(" - Git branch: ").append(env.gitBranch());
         }

@@ -22,6 +22,9 @@ import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
 
+/**
+ * 管理 MCP 服务的连接生命周期，并将服务端工具适配为应用内部的 {@link Tool}。
+ */
 public class McpManager {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-zA-Z0-9_]");
@@ -64,6 +67,7 @@ public class McpManager {
                     }
                 }
             } catch (Exception e) {
+                // 单个服务连接失败不应阻止其他 MCP 服务继续初始化。
                 errors.add("MCP server '" + name + "': " + e.getMessage());
             }
         }
@@ -87,6 +91,7 @@ public class McpManager {
     private McpSyncClient createClient(McpServerConfig cfg) {
         io.modelcontextprotocol.spec.McpClientTransport transport;
 
+        // command 配置优先使用本地 stdio；否则回退到远程 Streamable HTTP。
         if (cfg.getCommand() != null && !cfg.getCommand().isBlank()) {
             var paramsBuilder = ServerParameters.builder(windowsSafe(cfg.getCommand()));
             if (cfg.getArgs() != null) {
@@ -126,6 +131,7 @@ public class McpManager {
     static String windowsSafe(String command) {
         if (!System.getProperty("os.name", "").toLowerCase().contains("win")) return command;
         String base = command.toLowerCase();
+        // npm 等工具在 Windows 上实际由 .cmd 启动，直接执行无后缀命令可能失败。
         if (WIN_CMD_SUFFIXED.contains(base)) return command + ".cmd";
         return command;
     }
@@ -138,6 +144,7 @@ public class McpManager {
         if (value == null) return null;
         return ENV_VAR.matcher(value).replaceAll(m -> {
             String env = System.getenv(m.group(1));
+            // 未定义的变量保留原占位符，避免静默替换为空字符串造成配置含义变化。
             return env != null ? env : m.group(0);
         });
     }
@@ -169,6 +176,7 @@ public class McpManager {
         @Override public Map<String, Object> schema() {
             var input = new LinkedHashMap<String, Object>();
             var jsonSchema = sdkTool.inputSchema();
+            // 仅透传工具系统能够识别的 JSON Schema 核心字段。
             if (jsonSchema != null) {
                 if (jsonSchema.type() != null) input.put("type", jsonSchema.type());
                 if (jsonSchema.properties() != null) input.put("properties", jsonSchema.properties());
@@ -199,6 +207,7 @@ public class McpManager {
         if (result.content() == null || result.content().isEmpty()) return "(no output)";
         var sb = new StringBuilder();
         for (var content : result.content()) {
+            // 当前 ToolResult 只承载文本，图片等非文本内容暂不转换。
             if (content instanceof McpSchema.TextContent tc) {
                 if (!sb.isEmpty()) sb.append("\n");
                 sb.append(tc.text());

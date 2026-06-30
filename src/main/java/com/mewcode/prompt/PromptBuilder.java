@@ -13,14 +13,19 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Assembles a system prompt from prioritized sections.
+ * 按顺序组装系统提示词的构建器。
+ *
+ * <p>每段提示词通过 priority 决定最终出现的位置；priority 越小越靠前。
+ * 这里的优先级只表示拼接顺序，不负责解决不同指令之间的语义冲突。</p>
  */
 public class PromptBuilder {
 
     // ── Inner types ─────────────────────────────────────────────────────
 
+    /** 一段可独立排序的提示词。name 用于标识，当前不会输出到最终内容。 */
     public record Section(String name, int priority, String content) {}
 
+    /** 构建提示词时需要暴露给模型的运行环境快照。 */
     public record EnvironmentContext(
             String workDir,
             String os,
@@ -31,6 +36,7 @@ public class PromptBuilder {
             String model,
             String date) {}
 
+    /** 可按需追加到基础系统提示词后的动态内容。 */
     public record BuildOptions(
             String skillSection,
             String customInstructions,
@@ -46,10 +52,12 @@ public class PromptBuilder {
     }
 
     public String build() {
+        // 稳定地按数值从小到大排列，使基础规则始终位于动态上下文之前。
         sections.sort(Comparator.comparingInt(Section::priority));
 
         var parts = new ArrayList<String>();
         for (Section s : sections) {
+            // 忽略空段并清理首尾空白，避免产生无意义的分隔行。
             String content = s.content() == null ? "" : s.content().strip();
             if (!content.isEmpty()) {
                 parts.add(content);
@@ -60,7 +68,7 @@ public class PromptBuilder {
 
     // ── Static convenience methods ──────────────────────────────────────
 
-    /** Detect the current runtime environment. */
+    /** 探测当前工作目录、平台和 Git 状态，生成一次性的运行环境快照。 */
     public static EnvironmentContext detectEnvironment(String model) {
         String workDir = System.getProperty("user.dir");
         String osName = System.getProperty("os.name", "unknown").toLowerCase();
@@ -109,7 +117,7 @@ public class PromptBuilder {
         return new EnvironmentContext(workDir, osName, arch, shell, isGitRepo, gitBranch, model, date);
     }
 
-    /** Build a complete system prompt from the environment and options. */
+    /** 将固定行为规则、运行环境和可选动态内容组装成完整的系统提示词。 */
     public static String buildSystemPrompt(EnvironmentContext env, BuildOptions options) {
         var builder = new PromptBuilder();
 

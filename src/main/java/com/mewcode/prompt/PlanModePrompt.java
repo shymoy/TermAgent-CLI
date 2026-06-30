@@ -6,13 +6,17 @@
 package com.mewcode.prompt;
 
 /**
- * Generates plan-mode reminders injected into the conversation to enforce the
- * read-only planning workflow.
+ * 生成计划模式下动态注入会话的提醒文本。
+ *
+ * <p>计划模式只允许读取项目和修改指定计划文件。这里通过完整提醒、精简提醒、
+ * 再次进入提醒和退出提醒，让模型在多轮工具调用中持续感知当前权限边界与工作流。</p>
  */
 public final class PlanModePrompt {
 
+    /** 控制完整提醒与精简提醒的轮次切换。 */
     private static final int REMINDER_INTERVAL = 5;
 
+    /** 首轮及周期性注入的完整规则，包含权限边界和五阶段计划流程。 */
     private static final String PLAN_MODE_FULL_REMINDER = """
             Plan mode is active. The user indicated that they do not want you to execute yet -- you \
             MUST NOT make any edits (with the exception of the plan file mentioned below), run any \
@@ -104,12 +108,14 @@ public final class PlanModePrompt {
             about user intent. The goal is to present a well researched plan to the user, and tie any \
             loose ends before implementation begins.""";
 
+    /** 非完整提醒轮次使用的短文本，减少重复上下文带来的 token 开销。 */
     private static final String PLAN_MODE_SPARSE_REMINDER =
             "Plan mode still active (see full instructions earlier in conversation). "
                     + "Read-only except plan file (%s). Follow 5-phase workflow. "
                     + "End turns with AskUserQuestion (for clarifications) or ExitPlanMode "
                     + "(for plan approval). Never ask about plan approval via text or AskUserQuestion.";
 
+    /** 退出后再次进入计划模式时，指导模型先判断旧计划是否仍然适用。 */
     private static final String PLAN_MODE_REENTRY_REMINDER = """
             ## Re-entering Plan Mode
 
@@ -130,6 +136,7 @@ public final class PlanModePrompt {
             Treat this as a fresh planning session. Do not assume the existing plan is relevant without \
             evaluating it first.""";
 
+    /** 退出计划模式后解除只读限制，并按需保留计划文件位置。 */
     private static final String PLAN_MODE_EXIT_REMINDER =
             "## Exited Plan Mode\n\n"
                     + "You have exited plan mode. You can now make edits, run tools, and take actions.%s";
@@ -137,14 +144,15 @@ public final class PlanModePrompt {
     private PlanModePrompt() {}
 
     /**
-     * Build the plan-mode reminder injected at each assistant turn.
+     * 构造每轮 Agent 循环需要注入的计划模式提醒。
      *
-     * @param planPath  path to the plan file
-     * @param planExists whether the plan file already exists on disk
-     * @param iteration 1-based turn counter within the plan-mode session
-     * @return the reminder string to inject
+     * @param planPath 计划文件路径
+     * @param planExists 计划文件当前是否存在
+     * @param iteration 当前计划会话中从 1 开始的循环轮次
+     * @return 本轮要注入会话的提醒文本
      */
     public static String buildReminder(String planPath, boolean planExists, int iteration) {
+        // 文件是否存在决定提示模型使用创建工具还是增量编辑工具。
         String planFileInfo = "Plan file: " + planPath;
         if (planExists) {
             planFileInfo += "\nA plan file already exists at " + planPath
@@ -155,9 +163,11 @@ public final class PlanModePrompt {
         }
 
         if (iteration == 1) {
+            // 首轮必须给出完整权限边界和工作流，不能只依赖精简提醒。
             return String.format(PLAN_MODE_FULL_REMINDER, planFileInfo);
         }
 
+        // 后续轮次在完整提醒与精简提醒之间切换，避免规则随长对话被淡化。
         int attachmentIndex = (iteration - 1) / REMINDER_INTERVAL;
         if (attachmentIndex % REMINDER_INTERVAL == 0) {
             return String.format(PLAN_MODE_FULL_REMINDER, planFileInfo);
@@ -166,12 +176,12 @@ public final class PlanModePrompt {
         return String.format(PLAN_MODE_SPARSE_REMINDER, planPath);
     }
 
-    /** Reminder shown when re-entering plan mode after previously exiting. */
+    /** 构造退出后再次进入计划模式时的旧计划检查提醒。 */
     public static String buildReentryReminder(String planPath) {
         return String.format(PLAN_MODE_REENTRY_REMINDER, planPath);
     }
 
-    /** Reminder shown immediately after exiting plan mode. */
+    /** 构造退出计划模式后立即注入的权限恢复提醒。 */
     public static String buildExitReminder(String planPath, boolean planExists) {
         String extra = "";
         if (planExists) {

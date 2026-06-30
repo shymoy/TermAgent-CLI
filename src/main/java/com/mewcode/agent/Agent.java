@@ -31,23 +31,25 @@ import java.util.concurrent.*;
 
 public class Agent {
 
+    // 单次回答的输出恢复上限：模型因 max_tokens 截断时，最多提升一次上限并续写三次。
     private static final int MAX_TOKENS_CEILING = 64_000;
     private static final int MAX_OUTPUT_RECOVERIES = 3;
 
+    // Agent 只依赖统一的 LlmClient；具体协议的请求转换和流解析由客户端实现负责。
     private final LlmClient client;
+    // registry 同时为模型提供工具 schema，并在执行阶段按名称找到具体工具。
     private final ToolRegistry registry;
     private final String protocol;
     private final int contextWindow;
     private final int maxOutput;
+    // 权限检查器和 HookEngine 可选；未配置时工具按默认执行链路运行。
     private PermissionChecker checker;
     private HookEngine hookEngine;
     private int maxIterations;
     private String workDir;
     /**
-     * Session log id for the on-disk transcript. Plumbed so that an in-loop
-     * compaction can append a compact_boundary record into the same session file
-     * (enabling resume to rebuild the compacted state). Null for sub-agents /
-     * one-shot callers that should not write boundaries into the main session.
+     * 当前会话的磁盘日志 ID。循环内发生上下文压缩时，用它把压缩边界写入同一份会话记录，
+     * 使恢复会话时能够重建压缩后的状态。子 Agent 或一次性调用不写主会话日志，因此可以为空。
      */
     private String sessionId;
     private java.util.function.Supplier<List<String>> notificationFn;
@@ -63,17 +65,14 @@ public class Agent {
             new com.mewcode.compact.ContextCompactor.AutoCompactTrackingState();
 
     /**
-     * Real API-usage anchor for the compaction decision. Refreshed after each
-     * stream ends with the provider-reported usage; null until the first turn
-     * reports usage, so the compactor falls back to character estimation on a
-     * cold start. See {@link com.mewcode.compact.ContextCompactor.UsageAnchor}.
+     * 上下文压缩使用的真实 token 基准。每轮流结束后根据服务商返回的 usage 更新；
+     * 第一轮尚无 usage 时为空，压缩器会暂时使用字符数估算。
      */
     private com.mewcode.compact.ContextCompactor.UsageAnchor usageAnchor;
 
     /**
-     * Per-conversation-thread tool-result decision log. Carries across
-     * iterations so Anthropic's prompt cache sees byte-stable prefixes.
-     * Forks (see {@code AgentTool}) clone this for their child agent.
+     * 当前会话的工具结果裁剪记录，需要跨迭代保存，保证相同历史始终采用相同替换结果，
+     * 从而维持 Anthropic Prompt Cache 前缀稳定。创建子 Agent 时会复制这份状态。
      */
     private ContentReplacementState replacementState = new ContentReplacementState();
 
@@ -81,10 +80,8 @@ public class Agent {
     public void setReplacementState(ContentReplacementState state) { this.replacementState = state; }
 
     /**
-     * Holds the snapshots needed to rebuild working context after Layer 2
-     * collapses the conversation: most-recent file reads + skill SOPs.
-     * Recorded on each ReadFile / skill call; consumed by ContextCompactor
-     * when the threshold trips.
+     * 保存上下文压缩后恢复工作现场所需的快照，例如最近读取的文件和已加载的 Skill。
+     * ReadFile、Skill 调用时持续更新，二层压缩触发后由 ContextCompactor 使用。
      */
     private final com.mewcode.compact.RecoveryState recoveryState =
             new com.mewcode.compact.RecoveryState();
@@ -124,17 +121,20 @@ public class Agent {
     public HookEngine getHookEngine() { return hookEngine; }
 
     public BlockingQueue<AgentEvent> run(ConversationManager conv) {
+        // 无外部队列时创建默认队列；容量用于限制 Agent 生产事件的速度，避免 UI 来不及消费时无限堆积。
         var queue = new LinkedBlockingQueue<AgentEvent>(64);
         run(conv, queue);
         return queue;
     }
 
-    // 使用调用方提供的 queue，允许 TUI 预先创建 queue 立即开始轮询
+    // 使用调用方提供的 queue，允许 TUI 在 Agent 启动前就持有队列并立即开始轮询。
     public void run(ConversationManager conv, BlockingQueue<AgentEvent> queue) {
+        // 模型请求和工具执行都可能阻塞，因此放在虚拟线程中，避免卡住 TUI 事件循环。
         Thread.startVirtualThread(() -> {
             try {
                 agentLoop(conv, queue);
             } catch (Exception e) {
+                // 主循环的未处理异常也转换成 AgentEvent，由 UI 统一展示，而不是让后台线程静默退出。
                 putSafe(queue, new AgentEvent.ErrorEvent("Agent error: " + e.getMessage()));
             }
         });
@@ -251,7 +251,8 @@ public class Agent {
             // 真正发起模型流式请求。具体 API 格式转换发生在各 LlmClient 内部。
             var streamQueue = client.stream(applied.apiConv(), tools);
 
-            // 消费统一的 StreamEvent：一边转发给 UI，一边收集最终要写入会话的内容。
+            // StreamEvent 是 LlmClient 发给 Agent 的协议无关事件；AgentEvent 是 Agent 发给 UI 的界面事件。
+            // 这里一边把增量内容转发给 UI，一边收集最终要写入会话历史的完整内容。
             var text = new StringBuilder();
             var thinkingBlocks = new ArrayList<ThinkingBlock>();
             var toolCalls = new ArrayList<ToolCallInfo>();
@@ -287,6 +288,7 @@ public class Agent {
                     }
                     case StreamEvent.ToolCallStart tcs ->
                             putSafe(queue, new AgentEvent.ToolUseEvent(tcs.toolId(), tcs.toolName(), Map.of()));
+                    // 工具参数增量已由 LlmClient 缓冲，Agent 等 ToolCallComplete 后再取得完整参数。
                     case StreamEvent.ToolCallDelta tcd -> {}
                     case StreamEvent.ToolCallComplete tcc -> {
                         toolCalls.add(new ToolCallInfo(tcc.toolId(), tcc.toolName(), tcc.arguments()));
@@ -455,8 +457,10 @@ public class Agent {
 
     private static void putSafe(BlockingQueue<AgentEvent> queue, AgentEvent event) {
         try {
+            // queue.put 在队列满时等待，让 UI 消费速度对 Agent 产生自然背压。
             queue.put(event);
         } catch (InterruptedException e) {
+            // 恢复中断标记，交给主循环在下一次检查时结束，而不是吞掉取消信号。
             Thread.currentThread().interrupt();
         }
     }
