@@ -3,6 +3,7 @@ package com.mewcode.tui.tea;
 
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.jline.utils.AttributedString;
 import org.jline.utils.NonBlockingReader;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  *  - view 从当前光标位置开始画，不用 \033[H]，不破坏之前的终端内容
  *  - 重绘时 cursor up 回到 view 起始行覆写
  *  - println 清除 view 后写文本，文本留在终端 scrollback
- *  - linesRendered 跟踪 view 中的 \n 数量（= 行数 - 1）
+ *  - linesRendered 跟踪 view 实际占用的终端行数，包括终端自动折行
  */
 public class Program {
 
@@ -29,8 +30,7 @@ public class Program {
     private PrintWriter writer;
     private volatile boolean running;
 
-    // Bubble Tea 风格：linesRendered = view 中的 \n 数量
-    // cursor up 这么多行就回到 view 第一行
+    // 从 view 最后一行向上移动这么多终端行，可以回到 view 第一行。
     private int linesRendered;
     private String lastViewContent = "";
 
@@ -122,14 +122,27 @@ public class Program {
         // 清除多余行
         writer.print("\033[J");
 
-        // 跟踪 \n 数量
-        int newlines = 0;
-        for (int i = 0; i < view.length(); i++) {
-            if (view.charAt(i) == '\n') newlines++;
-        }
-        linesRendered = newlines;
+        linesRendered = renderedLineBreaks(view, terminal.getSize().getColumns());
 
         writer.flush();
+    }
+
+    /**
+     * 计算光标从 view 首行移动到末行经过的终端行数。
+     * ANSI 样式不占列宽，中文等宽字符则可能占两列；超过终端宽度的内容会自动折行。
+     */
+    static int renderedLineBreaks(String view, int terminalWidth) {
+        int width = Math.max(terminalWidth, 1);
+        String[] lines = view.split("\\n", -1);
+        int breaks = lines.length - 1;
+        for (String line : lines) {
+            int columns = AttributedString.fromAnsi(line).columnLength();
+            if (columns > 0) {
+                // 恰好写到末列不会立即换行；下一个可见字符才触发自动折行。
+                breaks += (columns - 1) / width;
+            }
+        }
+        return breaks;
     }
 
     // 清除当前 view 区域
