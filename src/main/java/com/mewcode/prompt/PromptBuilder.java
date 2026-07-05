@@ -16,7 +16,7 @@ import java.util.List;
  */
 public class PromptBuilder {
 
-    // ── Inner types ─────────────────────────────────────────────────────
+    // ── 内部类型──────────────────────────────────────────────────────
 
     /** 一段可独立排序的提示词。name 用于标识，当前不会输出到最终内容。 */
     public record Section(String name, int priority, String content) {}
@@ -38,7 +38,7 @@ public class PromptBuilder {
             String customInstructions,
             String memorySection) {}
 
-    // ── Builder state ───────────────────────────────────────────────────
+    // ── 建造者状态────────────────────────────────────────────────────
 
     private final List<Section> sections = new ArrayList<>();
 
@@ -62,7 +62,7 @@ public class PromptBuilder {
         return String.join("\n\n", parts);
     }
 
-    // ── Static convenience methods ──────────────────────────────────────
+    // ── 静态便捷方法──────────────────────────────────────
 
     /** 探测当前工作目录、平台和 Git 状态，生成一次性的运行环境快照。 */
     public static EnvironmentContext detectEnvironment(String model) {
@@ -89,7 +89,7 @@ public class PromptBuilder {
             }
             p.waitFor();
         } catch (Exception ignored) {
-            // not a git repo or git not available
+            // 不是 git 存储库或 git 不可用
         }
 
         if (isGitRepo) {
@@ -105,7 +105,7 @@ public class PromptBuilder {
                 }
                 p.waitFor();
             } catch (Exception ignored) {
-                // branch detection failed
+                // 分支检测失败
             }
         }
 

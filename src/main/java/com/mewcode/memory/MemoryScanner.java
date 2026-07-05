@@ -13,31 +13,53 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Scans memory directories for .md files with YAML-ish frontmatter,
- * returning header metadata sorted newest-first. Shared by
- * {@link MemoryRecall} (query-time recall) and any future extraction agent.
+
+ * 使用 YAML-ish frontmatter 扫描内存目录中的 .md 文件，
+
+ * 返回按最新顺序排序的标头元数据。分享者
+
+ * {@link MemoryRecall}（查询时召回）和任何未来的提取代理。
+
  */
 public final class MemoryScanner {
 
     private MemoryScanner() {}
 
-    /** Maximum memory files surfaced to the selector model. */
+    /**
+
+     * 最大记忆文件出现在选择器模型中。
+
+     */
     public static final int MAX_MEMORY_FILES = 200;
 
-    /** How many lines to read for frontmatter parsing. */
+    /**
+
+     * frontmatter 解析需要读取多少行。
+
+     */
     private static final int FRONTMATTER_MAX_LINES = 30;
 
-    /** MEMORY.md is the entrypoint index — not a memory file itself. */
+    /**
+
+     * MEMORY.md 是入口索引，而不是记忆文件本身。
+
+     */
     private static final String ENTRYPOINT_NAME = "MEMORY.md";
 
-    /** YAML-ish frontmatter block: starts with `---`, ends with `---`. */
+    /**
+
+     * YAML-ish frontmatter 块：以 `---` 开头，以 `---` 结尾。
+
+     */
     private static final Pattern FRONTMATTER_RE =
             Pattern.compile("\\A---\\s*\\n(.*?)\\n---\\s*\\n", Pattern.DOTALL);
 
-    // ── Header record ──────────────────────────────────────────────────
+    // ── 头记录──────────────────────────────────────────────────
 
     /**
-     * One scanned memory file's metadata.
+
+     * 一份扫描的记忆文件的元数据。
+
      */
     public record MemoryHeader(
             String filename,    // path relative to memoryDir
@@ -51,13 +73,21 @@ public final class MemoryScanner {
     // ── Scan ───────────────────────────────────────────────────────────
 
     /**
-     * Walk {@code memoryDir} for .md files (excluding MEMORY.md), read
-     * frontmatter from each, and return a header list sorted newest-first,
-     * capped at {@link #MAX_MEMORY_FILES}.
+
+     * 遍历{@code memoryDir}的.md文件（不包括MEMORY.md），读取
+
+     * frontmatter 来自每个，并返回一个按最新优先排序的标题列表，
+
+     * 上限为 {@link #MAX_MEMORY_FILES}。
+
      *
-     * @param memoryDir the directory to scan
-     * @param scope     "user" or "project" — threaded into each header
-     * @return headers sorted by mtime descending; empty list if dir missing
+
+     * @param memoryDir 要扫描的目录
+
+     * @param scope     "user" 或 "project" — 螺纹连接到每个接头中
+
+     * @return headers 按时间降序排序；如果缺少目录则为空列表
+
      */
     public static List<MemoryHeader> scanMemoryFiles(Path memoryDir, String scope) {
         if (memoryDir == null || !Files.isDirectory(memoryDir)) {
@@ -83,7 +113,7 @@ public final class MemoryScanner {
             }
         }
 
-        // Sort newest-first.
+        // 排序最新的在前。
         results.sort(Comparator.comparingLong(MemoryHeader::mtimeMs).reversed());
         if (results.size() > MAX_MEMORY_FILES) {
             results = new ArrayList<>(results.subList(0, MAX_MEMORY_FILES));
@@ -91,7 +121,7 @@ public final class MemoryScanner {
         return results;
     }
 
-    // ── Header parsing ─────────────────────────────────────────────────
+    // ── 头解析──────────────────────────────────────────────────
 
     private static MemoryHeader readMemoryHeader(Path filePath, Path memoryDir, String scope) {
         long mtimeMs;
@@ -101,7 +131,7 @@ public final class MemoryScanner {
             return null;
         }
 
-        // Read first FRONTMATTER_MAX_LINES for frontmatter parsing.
+        // 首先阅读 FRONTMATTER_MAX_LINES 进行 frontmatter 解析。
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = Files.newBufferedReader(filePath)) {
             for (int i = 0; i < FRONTMATTER_MAX_LINES; i++) {
@@ -125,14 +155,18 @@ public final class MemoryScanner {
                 mtimeMs, fm.description(), fm.type());
     }
 
-    // ── Frontmatter ────────────────────────────────────────────────────
+    // ── 前题──────────────────────────────────────────────────────
 
     record Frontmatter(String name, String description, String type) {}
 
     /**
-     * Extracts name/description/type from YAML-ish frontmatter. Only the
-     * three known fields are read; everything else is ignored. Files without
-     * frontmatter return empty fields.
+
+     * 从 YAML-ish frontmatter 中提取名称/描述/类型。只有
+
+     * 读取三个已知字段；其他一切都被忽略。文件不带
+
+     * frontmatter 返回空字段。
+
      */
     static Frontmatter parseFrontmatter(String content) {
         Matcher m = FRONTMATTER_RE.matcher(content);
@@ -148,7 +182,7 @@ public final class MemoryScanner {
             if (colon < 0) continue;
             String key = line.substring(0, colon).trim();
             String val = line.substring(colon + 1).trim();
-            // Strip quotes.
+            // 剥离引号。
             if ((val.startsWith("\"") && val.endsWith("\""))
                     || (val.startsWith("'") && val.endsWith("'"))) {
                 val = val.substring(1, val.length() - 1);
@@ -171,15 +205,19 @@ public final class MemoryScanner {
         return VALID_TYPES.contains(raw);
     }
 
-    // ── Manifest formatting ────────────────────────────────────────────
+    // ── 清单格式────────────────────────────────────────────
 
     private static final DateTimeFormatter ISO_MS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
     /**
-     * Formats memory headers as a text manifest: one line per file with
-     * {@code [scope] [type] path (timestamp): description}. Used by the
-     * recall selector prompt.
+
+     * 将记忆元数据格式化为文本清单：每个文件一行
+
+     * {@code [scope] [type] path (timestamp): description}。使用者
+
+     * 调用选择器提示。
+
      */
     public static String formatMemoryManifest(List<MemoryHeader> memories) {
         if (memories.isEmpty()) return "";

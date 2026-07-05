@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.logging.Logger;
 
 /**
- * Post-creation setup for newly created worktrees.
+
+ * 新创建的工作树的创建后设置。
+
  */
 public final class PostCreationSetup {
 

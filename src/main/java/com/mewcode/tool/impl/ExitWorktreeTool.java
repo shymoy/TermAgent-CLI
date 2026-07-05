@@ -12,7 +12,9 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * Exits a worktree session and restores the original directory.
+
+ * 退出工作树会话并恢复原始目录。
+
  */
 public class ExitWorktreeTool implements Tool {
 
@@ -96,7 +98,7 @@ public class ExitWorktreeTool implements Tool {
             }
         }
 
-        // Clear session
+        // 清除会话
         WorktreeSessionStore.restoreSession(null);
         try {
             WorktreeSessionStore.save(worktreeManager.getProjectRoot(), null);

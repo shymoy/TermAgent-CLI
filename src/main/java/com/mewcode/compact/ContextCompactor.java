@@ -26,46 +26,44 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * Two-layer context compaction: Layer 1 offloads and snips locally,
- * Layer 2 triggers a full LLM summary when used tokens approach the context window limit.
+ * 两层上下文压缩：第一层在本地卸载并裁剪内容，
+ * 第二层在已用 token 接近上下文窗口上限时触发完整的 LLM 摘要。
  */
 public final class ContextCompactor {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // AUTOCOMPACT_THRESHOLD is the legacy ratio gate (kept for reference only).
-    // The live decision now uses the absolute-token formula below, aligned with
-    // Claude Code's autoCompact.ts: trigger on used-tokens >= effectiveWindow − margin.
+    // AUTOCOMPACT_THRESHOLD 是旧版比例阈值（仅保留作参考）。
+    // 当前判断使用下方的绝对 token 公式，与 Claude Code 的 autoCompact.ts 保持一致：
+    // 当已用 token >= effectiveWindow − margin 时触发。
     private static final double AUTOCOMPACT_THRESHOLD = 0.80;
 
-    // SUMMARY_OUTPUT_RESERVE reserves room for the summary response itself, so the
-    // effective window is contextWindow − min(model maxOutput, SUMMARY_OUTPUT_RESERVE).
+    // SUMMARY_OUTPUT_RESERVE 为摘要响应本身预留空间，因此有效窗口为
+    // contextWindow − min(型号maxOutput, SUMMARY_OUTPUT_RESERVE)。
     private static final int SUMMARY_OUTPUT_RESERVE = 20_000;
-    // AUTO_COMPACT_SAFETY_MARGIN sets the soft auto-compact trigger line below the
-    // effective window.
+    // AUTO_COMPACT_SAFETY_MARGIN 设置低于有效窗口的自动压缩软触发线。
     private static final int AUTO_COMPACT_SAFETY_MARGIN = 13_000;
-    // MANUAL_COMPACT_SAFETY_MARGIN sets the hard-block line: once used tokens cross
-    // effectiveWindow − MANUAL_COMPACT_SAFETY_MARGIN, we force a compaction rather
-    // than rely on the soft trigger.
+    // MANUAL_COMPACT_SAFETY_MARGIN 设置硬阻断线：当已用 token 越过
+    // effectiveWindow − MANUAL_COMPACT_SAFETY_MARGIN 时强制压缩，
+    // 不再依赖软触发。
     private static final int MANUAL_COMPACT_SAFETY_MARGIN = 3_000;
 
     private static final int SINGLE_RESULT_LIMIT = 50_000;
     private static final int MESSAGE_AGGREGATE_LIMIT = 200_000;
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
 
-    // ── messagesToKeep window (aligned with Claude Code compact.ts) ────────
-    // A Layer 2 compaction no longer collapses the whole conversation into a
-    // lone summary; it keeps the recent verbatim tail and only summarizes the
-    // older prefix. KEEP_RECENT_TOKENS is the floor we try to keep, capped by
-    // KEEP_MAX_TOKENS; MIN_KEEP_MESSAGES guarantees at least a few raw turns
-    // survive even when they are tiny.
+    // ── messagesToKeep 窗口（与 Claude Code compact.ts 保持一致）────────
+    // 第二层压缩不再把整个对话折叠成单独一份摘要；它会原样保留最近的尾部消息，
+    // 只摘要较早的前缀。KEEP_RECENT_TOKENS 是尝试保留的下限，
+    // KEEP_MAX_TOKENS 是上限；MIN_KEEP_MESSAGES 保证即使消息很短，
+    // 也至少保留最近几轮原始对话。
     private static final int KEEP_RECENT_TOKENS = 10_000;
     private static final int MIN_KEEP_MESSAGES = 5;
     private static final int KEEP_MAX_TOKENS = 40_000;
 
     private static final String SPILL_SUBDIR = ".mewcode/tool_results";
 
-    /** Recovery limits applied to the attachment block appended after a Layer 2 summary. */
+    /** 第二层摘要后所追加恢复附件的限制。 */
     public static final int RECOVERY_FILE_LIMIT = 5;
     public static final int RECOVERY_TOKENS_PER_FILE = 5_000;
     public static final int RECOVERY_SKILLS_BUDGET = 25_000;
@@ -142,7 +140,7 @@ public final class ContextCompactor {
 
     private ContextCompactor() {}
 
-    // ── Circuit Breaker ────────────────────────────────────────────────
+    // ── 熔断器 ────────────────────────────────────────────────────────
 
     public static class AutoCompactTrackingState {
         private int consecutiveFailures;
@@ -160,13 +158,12 @@ public final class ContextCompactor {
         }
     }
 
-    // ── Public API ──────────────────────────────────────────────────────
+    // ── 公共 API ──────────────────────────────────────────────────────
 
     /**
-     * Returns the absolute used-token line at which Layer 2 should fire.
-     * effectiveWindow = contextWindow − min(maxOutput, SUMMARY_OUTPUT_RESERVE);
-     * the threshold is effectiveWindow minus the safety margin (manual margin for
-     * the hard-block line, auto margin for the soft trigger).
+     * 返回触发第二层压缩时已用 token 的绝对阈值。
+     * effectiveWindow = contextWindow − min(maxOutput, SUMMARY_OUTPUT_RESERVE)；
+     * 阈值为有效窗口减去安全边距（硬阻断线使用手动边距，软触发使用自动边距）。
      */
     private static int computeCompactThreshold(int contextWindow, int maxOutput, boolean manual) {
         int reserve = SUMMARY_OUTPUT_RESERVE;
@@ -179,10 +176,10 @@ public final class ContextCompactor {
     }
 
     /**
-     * Layer 1 runs unconditionally (offload + snip). Layer 2 fires when used
-     * tokens reach the auto-compact threshold (effectiveWindow − auto margin);
-     * once they cross the hard-block line (effectiveWindow − manual margin) it
-     * forces a compaction. See {@link #computeCompactThreshold}.
+     * 第一层无条件执行（卸载 + 裁剪）。已用 token 达到自动压缩阈值
+     *（effectiveWindow − 自动边距）时触发第二层；一旦越过硬阻断线
+     *（effectiveWindow − 手动边距），则强制压缩。参见
+     * {@link #computeCompactThreshold}。
      */
     public static String manage(ConversationManager conv, LlmClient client,
                                 int contextWindow, int maxOutput, String workDir,
@@ -204,11 +201,10 @@ public final class ContextCompactor {
     }
 
     /**
-     * Layer 1 + Layer 2 management. {@code workDir} + {@code sessionId} locate the
-     * on-disk session log; when both are non-blank a Layer 2 compaction also
-     * appends a {@code compact_boundary} record (summary + kept tail) so a later
-     * resume can rebuild the compacted state. They are null/blank for sub-agents
-     * and one-shot callers, in which case no boundary is written.
+     * 管理第一层和第二层压缩。{@code workDir} + {@code sessionId} 用于定位磁盘上的
+     * 会话日志；两者均非空时，第二层压缩还会追加一条 {@code compact_boundary}
+     * 记录（摘要 + 保留的尾部），以便后续恢复时重建压缩后的状态。对子代理和一次性
+     * 调用方而言，这两个参数为 null 或空白，此时不会写入边界记录。
      */
     public static String manage(ConversationManager conv, LlmClient client,
                                 int contextWindow, int maxOutput, String workDir, String sessionId,
@@ -221,7 +217,7 @@ public final class ContextCompactor {
     }
 
     /**
-     * Layer 1 + Layer 2 management. {@code budgetMessages} 是经过 ToolResultBudget
+     * 管理第一层和第二层压缩。{@code budgetMessages} 是经过 ToolResultBudget
      * 裁剪后的消息列表，用于更精确的 token 估算（budget 裁剪后的体积更小，能更
      * 准确判断是否需要触发 compact）。当 {@code budgetMessages} 为 null 时回退到
      * {@code conv.getMessages()}。
@@ -261,15 +257,15 @@ public final class ContextCompactor {
         return "";
     }
 
-    /** Force a full auto-compact regardless of current token usage (no session boundary). */
+    /** 无论当前 token 使用量如何，都强制执行完整的自动压缩（不写入会话边界）。 */
     public static String forceCompact(ConversationManager conv, LlmClient client, int contextWindow,
                                       RecoveryState recovery, List<Map<String, Object>> toolSchemas) {
         return autoCompact(conv, client, contextWindow, null, null, recovery, toolSchemas, null);
     }
 
     /**
-     * Force a full auto-compact, writing a compact_boundary into the session log
-     * when {@code workDir}/{@code sessionId} are provided.
+     * 强制执行完整的自动压缩；提供 {@code workDir}/{@code sessionId} 时，
+     * 向会话日志写入 compact_boundary。
      */
     public static String forceCompact(ConversationManager conv, LlmClient client, int contextWindow,
                                       String workDir, String sessionId,
@@ -278,7 +274,7 @@ public final class ContextCompactor {
     }
 
     /**
-     * Force a full auto-compact with budget-reduced messages for token estimation.
+     * 使用经过预算裁剪的消息估算 token，并强制执行完整的自动压缩。
      */
     public static String forceCompact(ConversationManager conv, LlmClient client, int contextWindow,
                                       String workDir, String sessionId,
@@ -288,24 +284,20 @@ public final class ContextCompactor {
     }
 
     /**
-     * Real API-usage anchor for context-window accounting. Captured after each
-     * stream ends: {@code baselineTokens} = input + cacheRead + cacheCreation +
-     * output reported by the provider, and {@code anchorCount} = the number of
-     * conversation messages present when that usage was measured. Everything
-     * after {@code anchorCount} is estimated incrementally on top of the
-     * baseline, so a cache hit (where the real input is far below the raw
-     * character estimate) no longer inflates the compaction decision.
+     * 用于计算上下文窗口用量的真实 API 使用量锚点。在每次流结束后捕获：
+     * {@code baselineTokens} = 供应商报告的 input + cacheRead + cacheCreation + output，
+     * {@code anchorCount} = 测量该用量时已有的对话消息数。{@code anchorCount}
+     * 之后的所有内容都在基线上增量估算，因此缓存命中时（真实输入远低于原始字符估算）
+     * 不会再夸大压缩判断所依据的用量。
      */
     public record UsageAnchor(int baselineTokens, int anchorCount) {}
 
     /**
-     * Current used-token estimate for the compaction decision.
+     * 用于压缩判断的当前已用 token 估算值。
      *
-     * <p>With a real-usage {@code anchor}: {@code baselineTokens} plus a
-     * character estimate of only the messages appended after the anchor
-     * (index >= anchorCount). Without an anchor (cold start, before any stream
-     * has reported usage) it falls back to estimating all messages, matching
-     * the legacy behaviour so the first turn still works.
+     * <p>存在真实用量 {@code anchor} 时：使用 {@code baselineTokens}，并只对锚点后
+     * 追加的消息（索引 >= anchorCount）按字符估算。没有锚点时（冷启动，尚无流报告用量），
+     * 回退为估算所有消息，与旧版行为保持一致，从而确保首轮仍能正常工作。
      */
     public static int currentTokens(List<Message> messages, UsageAnchor anchor) {
         if (anchor == null || anchor.anchorCount() < 0
@@ -316,7 +308,7 @@ public final class ContextCompactor {
         return anchor.baselineTokens() + estimateTokens(appended);
     }
 
-    /** Estimate the token count for a list of messages using a simple heuristic. */
+    /** 使用简单的启发式规则估算一组消息的 token 数量。 */
     public static int estimateTokens(List<Message> messages) {
         int total = 0;
         for (Message m : messages) {
@@ -349,7 +341,7 @@ public final class ContextCompactor {
         return total;
     }
 
-    // ── Layer 1: Offload & Snip ────────────────────────────────────────
+    // ── 第一层：卸载与裁剪 ────────────────────────────────────────────
 
     static String offloadAndSnip(ConversationManager conv, String workDir) {
         List<Message> messages = conv.getMessagesMutable();
@@ -369,7 +361,7 @@ public final class ContextCompactor {
             List<ToolResultBlock> results = new ArrayList<>(msg.getToolResults());
             boolean msgChanged = false;
 
-            // Per-result spill: single result above SINGLE_RESULT_LIMIT
+            // 按结果落盘：单个结果超过 SINGLE_RESULT_LIMIT
             for (int j = 0; j < results.size(); j++) {
                 ToolResultBlock tr = results.get(j);
                 if (alreadyProcessed(tr.content()) || safeLength(tr.content()) <= SINGLE_RESULT_LIMIT) {
@@ -389,7 +381,7 @@ public final class ContextCompactor {
                 msgChanged = true;
             }
 
-            // Per-message aggregate spill
+            // 按消息汇总落盘
             int agg = 0;
             for (ToolResultBlock tr : results) {
                 agg += safeLength(tr.content());
@@ -427,26 +419,22 @@ public final class ContextCompactor {
         return String.format("spilled %d tool result(s) to disk (~%d chars freed)", spillCount, savedChars);
     }
 
-    // ── Layer 2: Auto-compact ──────────────────────────────────────────
+    // ── 第二层：自动压缩 ──────────────────────────────────────────────
 
     /**
-     * Pick the index where the verbatim "keep" tail begins, mirroring Claude
-     * Code's messagesToKeep selection.
+     * 选择原样“保留”尾部的起始索引，与 Claude Code 的 messagesToKeep 选择逻辑一致。
      *
-     * <p>Walk backwards from the end accumulating each message's estimated
-     * tokens. We stop and keep everything from the current index once either
-     * floor (KEEP_RECENT_TOKENS of tokens, or MIN_KEEP_MESSAGES of messages) is
-     * met — whichever comes first. The accumulator is also capped: if adding a
-     * message would push the kept tail over KEEP_MAX_TOKENS we stop before it.
+     * <p>从末尾反向遍历，累加每条消息的估算 token。只要达到任一下限
+     *（token 达到 KEEP_RECENT_TOKENS，或消息数达到 MIN_KEEP_MESSAGES），
+     * 就停止遍历并保留当前索引之后的全部内容，以先达到者为准。累加量同样设有上限：
+     * 如果加入某条消息会使保留尾部超过 KEEP_MAX_TOKENS，则在加入前停止。
      *
-     * <p>Pairing protection: a {@code user} message carrying tool_result blocks
-     * must never be kept without its originating {@code assistant} tool_use
-     * message. If the chosen boundary lands on such a message, we walk back one
-     * more (to include the assistant turn that issued the tool_use), so we never
-     * keep an orphaned half of a tool_use↔tool_result pair.
+     * <p>配对保护：携带 tool_result 块的 {@code user} 消息不能在缺少其来源
+     * {@code assistant} tool_use 消息的情况下单独保留。如果选定边界落在此类消息上，
+     * 则继续向前移动（纳入发出 tool_use 的 assistant 轮次），避免保留
+     * tool_use↔tool_result 配对中孤立的一半。
      *
-     * @return the start index of the keep window, or 0 when everything fits in
-     *         the keep window (nothing left to summarize).
+     * @return 保留窗口的起始索引；如果所有内容都能放入保留窗口（没有内容需要摘要），则返回 0。
      */
     static int computeKeepStartIndex(List<Message> messages) {
         int n = messages.size();
@@ -454,27 +442,26 @@ public final class ContextCompactor {
 
         int accumulated = 0;
         int kept = 0;
-        int keepStart = n; // exclusive walk: keepStart is the first kept index
+        int keepStart = n; // 反向遍历：keepStart 是第一个保留元素的索引
         for (int i = n - 1; i >= 0; i--) {
             int msgTokens = estimateTokens(List.of(messages.get(i)));
-            // Cap: if this message would push the kept tail past the ceiling,
-            // stop now and leave it in the summarized prefix.
+            // 上限：如果这条消息会使保留尾部超过上限，则立即停止，
+            // 将其留在需要摘要的前缀中。
             if (accumulated + msgTokens > KEEP_MAX_TOKENS && kept > 0) {
                 break;
             }
             accumulated += msgTokens;
             kept++;
             keepStart = i;
-            // Floor: satisfied as soon as EITHER threshold is reached.
+            // 下限：任一阈值达到即视为满足。
             if (accumulated >= KEEP_RECENT_TOKENS || kept >= MIN_KEEP_MESSAGES) {
                 break;
             }
         }
 
-        // Pairing protection: never start the keep window on a user message that
-        // only carries tool_result blocks — that would orphan it from its
-        // assistant tool_use. Move the boundary back to include the assistant
-        // turn (and skip any further dangling tool_result messages).
+        // 配对保护：保留窗口不能从仅携带 tool_result 块的 user 消息开始，
+        // 否则它会与对应的 assistant tool_use 脱节。向前移动边界以纳入 assistant
+        // 轮次（并越过其他悬空的 tool_result 消息）。
         while (keepStart > 0 && isToolResultMessage(messages.get(keepStart))) {
             keepStart--;
         }
@@ -497,12 +484,12 @@ public final class ContextCompactor {
                 ? budgetMessages : conv.getMessages();
         int beforeTokens = estimateTokens(messages);
 
-        // Keep the recent verbatim tail; only summarize the older prefix.
+        // 原样保留最近的尾部，只摘要较早的前缀。
         int keepStartIndex = computeKeepStartIndex(messages);
 
-        // Degenerate cases: nothing to summarize (everything is in the keep
-        // window) or the prefix is too small to be worth a summary round-trip.
-        // Fall back to the original behaviour of leaving the conversation as-is.
+        // 退化情况：没有内容需要摘要（全部内容都在保留窗口中），
+        // 或前缀太短，不值得额外请求一次摘要。
+        // 回退到原有行为，保持对话不变。
         if (keepStartIndex <= 0 || keepStartIndex < MIN_KEEP_MESSAGES) {
             return "";
         }
@@ -515,15 +502,12 @@ public final class ContextCompactor {
                 SUMMARY_SYSTEM_PROMPT + "\n\n" + serialized);
         String summaryText = formatCompactSummary(summaryRaw);
 
-        // Persist a compact_boundary record so a later resume can rebuild this
-        // compacted state (summary + kept tail) instead of replaying the full
-        // pre-compaction transcript. Append-only: the original prefix messages
-        // stay in the file but won't be replayed past this boundary. The kept tail
-        // is inlined as role+content text (matching how the session log already
-        // stores messages — text only, no tool blocks). The boundary stores the
-        // pure summary text, not the recovery attachment, since the recovery
-        // snapshots are an in-memory rebuild aid unavailable on resume. Skipped
-        // when sessionId/workDir is null/blank (tests, one-shot callers).
+        // 持久化 compact_boundary 记录，以便后续恢复时重建压缩后的状态
+        //（摘要 + 保留的尾部），而不是重放压缩前的完整对话。日志只追加：原始前缀消息
+        // 仍留在文件中，但不会越过此边界重放。保留的尾部以内联 role+content 文本保存
+        //（与会话日志现有的消息存储方式一致——仅文本，不含工具块）。边界只存储纯摘要文本，
+        // 不包含恢复附件，因为恢复快照只是内存中的重建辅助信息，恢复会话时无法获取。
+        // sessionId/workDir 为 null 或空白时跳过（测试、一次性调用方）。
         if (workDir != null && !workDir.isBlank() && sessionId != null && !sessionId.isBlank()) {
             List<SessionManager.KeepMessage> keepRecords = new ArrayList<>(toKeep.size());
             for (Message m : toKeep) {
@@ -545,7 +529,7 @@ public final class ContextCompactor {
             content += "\n\n---\n\n" + attachment;
         }
 
-        // Rebuild = summary (user) + recent verbatim tail (no assistant ack).
+        // 重建结果 = 摘要（user）+ 最近的原样尾部（不添加 assistant 确认消息）。
         ConversationManager compacted = new ConversationManager();
         compacted.addUserMessage(content);
         for (Message m : toKeep) {
@@ -558,15 +542,14 @@ public final class ContextCompactor {
         return String.format("Compacted: %d -> %d estimated tokens", beforeTokens, afterTokens);
     }
 
-    // ── Post-compact recovery attachment ───────────────────────────────
+    // ── 压缩后的恢复附件 ──────────────────────────────────────────────
 
     /**
-     * Render the four-section recovery block that gets appended to the
-     * summary user message. Returns "" when there is nothing worth
-     * emitting so the caller can keep the summary clean.
+     * 渲染追加到摘要 user 消息后的四段恢复块。没有值得输出的内容时返回 ""，
+     * 以便调用方保持摘要整洁。
      *
-     * @param state        per-agent snapshots of recent file reads + skills
-     * @param toolSchemas  the schemas the agent will send on the next request
+     * @param state        每个代理最近读取文件和技能的快照
+     * @param toolSchemas  代理将在下一次请求中发送的工具 schema
      */
     public static String buildRecoveryAttachment(RecoveryState state,
                                                  List<Map<String, Object>> toolSchemas) {
@@ -661,7 +644,7 @@ public final class ContextCompactor {
         return "";
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────
+    // ── 辅助方法 ──────────────────────────────────────────────────────
 
     private static boolean alreadyProcessed(String s) {
         return s != null && s.startsWith("[Result of ");

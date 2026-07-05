@@ -8,7 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Persists WorktreeSession to disk and manages the global singleton.
+
+ * 将 WorktreeSession 保存到磁盘并管理全局单例。
+
  */
 public final class WorktreeSessionStore {
 

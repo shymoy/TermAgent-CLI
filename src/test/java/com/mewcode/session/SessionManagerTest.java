@@ -84,19 +84,20 @@ class SessionManagerTest {
         assertFalse(id.isBlank());
     }
 
-    // ── compact_boundary round-trip ─────────────────────────────────────
+    // ── 紧凑边界往返 ──────────────────────────────────────
 
     @Test
     void resumeRebuildsCompactedStateFromBoundary(@TempDir Path dir) {
         String workDir = dir.toString();
         String sessionId = "20260101-140000";
 
-        // Pre-compaction prefix: these original messages stay in the file but
-        // must NOT be replayed once a boundary exists.
+        // 预压缩前缀：这些原始消息保留在文件中，但
+
+        // 一旦存在边界，就必须重播 NOT。
         SessionManager.saveMessage(workDir, sessionId, "user", "original prefix question");
         SessionManager.saveMessage(workDir, sessionId, "assistant", "original prefix answer");
 
-        // Compaction writes a boundary inlining the summary + kept verbatim tail.
+        // 压缩写入一个内联摘要的边界+保留逐字尾部。
         var keep = List.of(
                 new SessionManager.KeepMessage("user", "kept user turn"),
                 new SessionManager.KeepMessage("assistant", "kept assistant turn"));
@@ -108,7 +109,7 @@ class SessionManagerTest {
 
         var loaded = SessionManager.loadSession(workDir, sessionId);
 
-        // Boundary scan finds the boundary + the plain messages after it.
+        // 边界扫描找到边界+其后的明文消息。
         var scan = SessionManager.findLastCompactBoundary(loaded);
         assertTrue(scan.found());
         assertEquals("THE SUMMARY", scan.boundary().summary());
@@ -116,38 +117,38 @@ class SessionManagerTest {
         assertEquals(2, scan.after().size());
         assertEquals("post-boundary question", scan.after().get(0).content());
 
-        // Compaction-aware rebuild = [summary as user] + keep + after.
+        // 压缩感知重建 = [作为用户摘要] + 保留 + 之后。
         ConversationManager conv = SessionManager.rebuildConversation(loaded);
         List<Message> msgs = conv.getMessages();
         assertEquals(5, msgs.size());
 
-        // Summary is the leading user message, wrapped in Chinese framing.
+        // 摘要是主要的用户信息，采用中文框架。
         assertEquals("user", msgs.get(0).getRole());
         assertTrue(msgs.get(0).getContent().contains("本次会话延续自之前的对话"));
         assertTrue(msgs.get(0).getContent().contains("THE SUMMARY"));
         assertTrue(msgs.get(0).getContent().contains("近期消息已原样保留"),
                 "kept tail is non-empty so the framing should include 近期消息已原样保留");
 
-        // Kept verbatim tail (original text preserved).
+        // 保留逐字尾部（保留原始文本）。
         assertEquals("user", msgs.get(1).getRole());
         assertEquals("kept user turn", msgs.get(1).getContent());
         assertEquals("assistant", msgs.get(2).getRole());
         assertEquals("kept assistant turn", msgs.get(2).getContent());
 
-        // Messages appended after the boundary.
+        // 消息附加在边界之后。
         assertEquals("user", msgs.get(3).getRole());
         assertEquals("post-boundary question", msgs.get(3).getContent());
         assertEquals("assistant", msgs.get(4).getRole());
         assertEquals("post-boundary answer", msgs.get(4).getContent());
 
-        // The pre-compaction prefix is NOT replayed.
+        // 预压缩前缀为 NOT 重播。
         boolean prefixReplayed = msgs.stream()
                 .anyMatch(m -> m.getContent() != null
                         && (m.getContent().contains("original prefix question")
                             || m.getContent().contains("original prefix answer")));
         assertFalse(prefixReplayed, "pre-boundary original prefix must not be replayed");
 
-        // Raw boundary blob is never replayed as a conversation message.
+        // 原始边界斑点永远不会作为对话消息重播。
         boolean blobReplayed = msgs.stream()
                 .anyMatch(m -> m.getContent() != null && m.getContent().contains("\"keep\""));
         assertFalse(blobReplayed, "raw boundary JSON blob must not appear in the conversation");
@@ -155,8 +156,8 @@ class SessionManagerTest {
 
     @Test
     void resumeReplaysEverythingWhenNoBoundary(@TempDir Path dir) {
-        // Backward compatibility: an old session with no compact_boundary must
-        // replay all messages verbatim, unchanged from the legacy behaviour.
+        // 向后兼容性：必须是没有compact_boundary的旧会话
+        // 逐字重播所有消息，与传统行为保持不变。
         String workDir = dir.toString();
         String sessionId = "20260101-150000";
 
@@ -179,8 +180,8 @@ class SessionManagerTest {
 
     @Test
     void onlyLastBoundaryWinsAcrossChainedCompactions(@TempDir Path dir) {
-        // Two compactions in one session (chained): resume must rebuild from the
-        // LAST boundary only, dropping the first summary + everything before it.
+        // 一个会话中的两次压缩（链接）：恢复必须从
+        // 仅 LAST 边界，删除第一个摘要及其之前的所有内容。
         String workDir = dir.toString();
         String sessionId = "20260101-160000";
 
@@ -201,7 +202,7 @@ class SessionManagerTest {
 
         ConversationManager conv = SessionManager.rebuildConversation(loaded);
         List<Message> msgs = conv.getMessages();
-        // [SECOND SUMMARY with Chinese framing] + [second-kept] + [newest a]
+        // [SECOND SUMMARY 带中文框] + [第二个保留] + [最新一个]
         assertEquals(3, msgs.size());
         assertTrue(msgs.get(0).getContent().contains("本次会话延续自之前的对话"));
         assertTrue(msgs.get(0).getContent().contains("SECOND SUMMARY"));
@@ -218,7 +219,7 @@ class SessionManagerTest {
 
     @Test
     void saveCompactBoundaryIsNoOpWhenSessionIdBlank(@TempDir Path dir) {
-        // Defensive: sub-agents / one-shot callers pass blank ids and must not
+        // 防御性：子代理/一次性呼叫者传递空白 ID，并且不得
         // create a session file.
         SessionManager.saveCompactBoundary(dir.toString(), "", "x", List.of());
         SessionManager.saveCompactBoundary(dir.toString(), null, "x", List.of());

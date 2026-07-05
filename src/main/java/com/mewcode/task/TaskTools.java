@@ -14,17 +14,24 @@ import java.util.Optional;
 import java.util.StringJoiner;
 
 /**
- * Four MCP-style tool implementations that expose the {@link TaskList} to
- * the LLM agent: create, get, list, and update.
+
+ * 四个 MCP 风格的工具实现，将 {@link TaskList} 暴露给
+
+ * LLM 代理：创建、获取、列出和更新。
+
  * <p>
- * All tools return {@code shouldDefer() == true} and category {@code COMMAND}.
+
+ * 所有工具均返回 {@code shouldDefer() == true} 和类别 {@code COMMAND}。
+
  */
 public final class TaskTools {
 
     private TaskTools() {} // utility class
 
     // ------------------------------------------------------------------
-    // TaskCreate
+
+    // 任务创建
+
     // ------------------------------------------------------------------
 
     public static class TaskCreateTool implements Tool {
@@ -235,7 +242,7 @@ public final class TaskTools {
                 return ToolResult.success("No tasks found.");
             }
 
-            // Build a set of completed task IDs so we can filter active blockers
+            // 构建一组已完成的任务 ID，以便我们可以过滤活动拦截器
             var completedIds = new LinkedHashSet<String>();
             for (TaskList.Task task : tasks) {
                 if (TaskList.Status.COMPLETED.value().equals(task.getStatus())) {
@@ -253,7 +260,7 @@ public final class TaskTools {
                     sb.append(" (owner: ").append(task.getOwner()).append(')');
                 }
 
-                // Show only active (non-completed) blockers
+                // 仅显示活动的（未完成的）阻止程序
                 if (task.getBlockedBy() != null) {
                     List<String> activeBlockers = new ArrayList<>();
                     for (String b : task.getBlockedBy()) {
@@ -274,7 +281,9 @@ public final class TaskTools {
     }
 
     // ------------------------------------------------------------------
-    // TaskUpdate
+
+    // 任务更新
+
     // ------------------------------------------------------------------
 
     public static class TaskUpdateTool implements Tool {
@@ -341,9 +350,13 @@ public final class TaskTools {
         }
 
         /**
-         * Returns the properties map with a stable key order using
-         * {@link LinkedHashMap} (unmodifiable maps from {@code Map.of} do not
-         * guarantee order, but for schema display a stable order is nice).
+
+         * 使用稳定的键顺序返回属性映射
+
+         * {@link LinkedHashMap}（来自 {@code Map.of} 的不可修改映射不会
+
+         * 保证顺序，但对于模式显示来说，稳定的顺序很好）。
+
          */
         private static Map<String, Object> orderedProps() {
             var props = new LinkedHashMap<String, Object>();
@@ -372,7 +385,7 @@ public final class TaskTools {
         }
     }
 
-    // ---- shared helpers ----
+    // ---- 共享助手 ----
 
     private static String asString(Map<String, Object> args, String key) {
         Object v = args.get(key);

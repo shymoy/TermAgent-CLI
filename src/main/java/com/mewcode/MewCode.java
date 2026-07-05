@@ -119,8 +119,8 @@ public class MewCode {
 
         System.out.print("\033[?25l");
 
-        // Re-register SIGINT handler after TUI4J's program.run() starts,
-        // overriding the framework's default quit-on-SIGINT behavior.
+        // TUI4J 启动 program.run() 后会安装默认的 SIGINT 处理器，
+        // 因此需要重新注册，避免 Ctrl-C 直接终止 TUI。
         Thread.ofVirtual().start(() -> {
             try { Thread.sleep(500); } catch (InterruptedException ignored) {}
             try {
@@ -136,4 +136,3 @@ public class MewCode {
         }
     }
 }
-

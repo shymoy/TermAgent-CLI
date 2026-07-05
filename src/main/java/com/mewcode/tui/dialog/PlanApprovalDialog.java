@@ -6,31 +6,56 @@ import com.mewcode.tui.tea.Style;
 import com.mewcode.tui.tea.ANSI256Color;
 
 /**
- * TUI dialog shown when plan mode completes. Offers three choices:
+
+ * 计划模式完成时显示 TUI 对话框。提供三种选择：
+
  * <ol>
- *   <li>Execute plan in YOLO mode (bypass all permissions)</li>
- *   <li>Execute plan with manual approval for each edit</li>
- *   <li>Send feedback text back to the agent</li>
+
+ * <li> YOLO方式执行计划（绕过所有权限）</li>
+
+ * <li>执行计划，每次编辑均需手动批准</li>
+
+ * <li>将反馈文本发送回代理</li>
+
  * </ol>
+
  * <p>
- * This is a plain-string renderer and key handler, not a TUI4J component.
- * It is driven by {@code MewCodeModel}, which calls {@link #handleKey(String)}
- * on every key press and {@link #render()} each frame.
+
+ * 这是一个纯字符串渲染器和键处理程序，而不是 TUI4J 组件。
+
+ * 由{@code MewCodeModel}驱动，调用{@link #handleKey(String)}
+
+ * 在每次按键和 {@link #render()} 每一帧上。
+
  *
+
  * @see com.mewcode.tui.MewCodeModel
+
  */
 public class PlanApprovalDialog {
 
-    /** Which of the three options the cursor is on (0-2). */
+    /**
+
+     * 光标位于三个选项中的哪一个 (0-2)。
+
+     */
     private int cursor;
 
-    /** Text input buffer for option 2 ("Send feedback"). */
+    /**
+
+     * 选项 2 ("Send feedback") 的文本输入缓冲区。
+
+     */
     private final StringBuilder feedbackInput = new StringBuilder();
 
-    /** Whether the dialog is currently visible. */
+    /**
+
+     * 对话框当前是否可见。
+
+     */
     private boolean active;
 
-    // ── Styles (inline, matching Go renderPlanApprovalDialog) ────────────
+    // ── 样式（内联，匹配 Go renderPlanApprovalDialog） ────────────
     private static final Style HEADER_STYLE = Style.newStyle()
             .foreground(new ANSI256Color(99))
             .bold(true);
@@ -44,39 +69,58 @@ public class PlanApprovalDialog {
     private static final Style BOLD_STYLE = Style.newStyle()
             .bold(true);
 
-    // ── Option labels (matching Go) ─────────────────────────────────────
+    // ── 选项标签（匹配Go）──────────────────────────────────────
     private static final String[] OPTIONS = {
             "Yes, enter YOLO mode (auto-approve all)",
             "Yes, manually approve edits",
             "Tell MewCode what to change",
     };
 
-    // ── Result types ────────────────────────────────────────────────────
+    // ── 结果类型────────────────────────────────────────────────────
 
-    /** The kind of action the user chose. */
+    /**
+
+     * 用户选择的操作类型。
+
+     */
     public enum Result {
-        /** Bypass all permissions (YOLO). */
+        /**
+         * 绕过所有权限（YOLO）。
+         */
         YOLO,
-        /** Approve each edit manually. */
+        /**
+         * 手动批准每个编辑。
+         */
         MANUAL,
-        /** Send feedback text back to the agent. */
+        /**
+         * 将反馈文本发送回客服人员。
+         */
         FEEDBACK,
-        /** User pressed escape; cancel the dialog. */
+        /**
+         * 用户按下退出键；取消对话框。
+         */
         CANCEL
     }
 
     /**
-     * Immutable result returned when the user makes a choice.
+
+     * 当用户做出选择时返回不可变的结果。
+
      *
-     * @param type     which action was selected
-     * @param feedback the feedback string (only meaningful when {@code type == FEEDBACK})
+
+     * @param type      选择了哪个操作
+
+     * @param feedback 反馈字符串（仅当{@code type == FEEDBACK}时有意义）
+
      */
     public record DialogResult(Result type, String feedback) {}
 
     // ── Lifecycle ───────────────────────────────────────────────────────
 
     /**
-     * Show the dialog, resetting cursor and feedback input.
+
+     * 显示对话框、重置光标和反馈输入。
+
      */
     public void activate() {
         active = true;
@@ -84,19 +128,29 @@ public class PlanApprovalDialog {
         feedbackInput.setLength(0);
     }
 
-    /** @return {@code true} while the dialog is visible */
+    /**
+
+     * @return {@code true} 当对话框可见时
+
+     */
     public boolean isActive() {
         return active;
     }
 
-    // ── Key handling ────────────────────────────────────────────────────
+    // ── 按键处理────────────────────────────────────────────────────
 
     /**
-     * Process a single key press.
+
+     * 处理单个按键。
+
      *
-     * @param key the key string from {@code KeyPressMessage} (e.g. "up", "enter", "a")
-     * @return a {@link DialogResult} if the user made a final choice, or {@code null}
-     *         if the dialog remains open (cursor moved, text typed, etc.)
+
+     * @param key {@code KeyPressMessage} 中的密钥字符串（e.g."up"、"enter"、"a"）
+
+     * 如果用户做出最终选择，则为 @return a {@link DialogResult}，或 {@code null}
+
+     * 如果对话框保持打开状态（光标移动、文本输入等）
+
      */
     public DialogResult handleKey(String key) {
         switch (key) {
@@ -108,7 +162,7 @@ public class PlanApprovalDialog {
             }
             case "enter" -> {
                 if (cursor == 2 && feedbackInput.isEmpty()) {
-                    // No feedback typed yet -- stay on the field
+                    // 尚未输入任何反馈——留在现场
                     return null;
                 }
                 active = false;
@@ -121,7 +175,7 @@ public class PlanApprovalDialog {
                 };
             }
             case "shift+tab" -> {
-                // Approve with feedback (Go: shift+tab on option 2 sends feedback AND exits plan mode)
+                // 批准并提供反馈（转到：选项 2 上的 shift+tab 发送反馈 AND 退出计划模式）
                 if (cursor == 2 && !feedbackInput.isEmpty()) {
                     active = false;
                     return new DialogResult(Result.FEEDBACK, feedbackInput.toString());
@@ -153,8 +207,11 @@ public class PlanApprovalDialog {
     // ── Rendering ───────────────────────────────────────────────────────
 
     /**
-     * Render the dialog as a plain String (ANSI-styled).
-     * Layout matches the Go {@code renderPlanApprovalDialog}.
+
+     * 将对话框呈现为纯字符串（ANSI 样式）。
+
+     * 布局与 Go {@code renderPlanApprovalDialog} 匹配。
+
      */
     public String render() {
         var sb = new StringBuilder();
@@ -164,9 +221,9 @@ public class PlanApprovalDialog {
                 " MewCode has written up a plan and is ready to execute. Would you like to proceed?"));
         sb.append("\n\n");
 
-        // Options list
+        // 选项列表
         for (int i = 0; i < OPTIONS.length; i++) {
-            // Cursor prefix
+            // 光标前缀
             String prefix;
             if (i == cursor) {
                 prefix = CURSOR_STYLE.render(" ❯ ");
@@ -186,14 +243,14 @@ public class PlanApprovalDialog {
             sb.append(String.format("%d. %s", i + 1, label));
             sb.append('\n');
 
-            // Feedback input field (only on option 2)
+            // 反馈输入字段（仅适用于选项 2）
             if (i == 2) {
                 String inputLine = feedbackInput.toString();
                 if (cursor == 2) {
                     inputLine += "█"; // block cursor
                 }
                 if ((cursor == 2 && inputLine.equals("█")) || inputLine.isEmpty()) {
-                    // Show placeholder when empty
+                    // 空时显示占位符
                     if (cursor == 2) {
                         String placeholder = DIM_STYLE.render("Type feedback here...");
                         sb.append("      ").append(placeholder).append('\n');

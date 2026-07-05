@@ -10,18 +10,31 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Loads sub-agent definitions from three sources (in priority order):
+
+ * 从三个来源加载子代理定义（按优先级顺序）：
+
  * <ol>
- *   <li>Built-in specs ({@link SubAgentSpec#GENERAL_PURPOSE}, etc.)</li>
- *   <li>User-level definitions from {@code ~/.mewcode/agents/*.md}</li>
- *   <li>Project-level definitions from {@code <projectRoot>/.mewcode/agents/*.md}</li>
+
+ * <li>内置规格（{@link SubAgentSpec#GENERAL_PURPOSE}等）</li>
+
+ * <li>{@code ~/.mewcode/agents/*.md}</li> 的用户级定义
+
+ * <li> {@code <projectRoot>/.mewcode/agents/*.md}</li> 的项目级定义
+
  * </ol>
- * Later sources override earlier ones with the same agent name.
+
+ * 后面的源会覆盖具有相同代理名称的早期源。
+
  *
- * <p>Each {@code .md} file uses optional YAML frontmatter delimited by {@code ---}
- * followed by a Markdown body that becomes the system prompt override. The
- * frontmatter fields are: {@code name}, {@code description}, {@code disallowedTools},
- * {@code model}, and {@code maxTurns}.
+
+ * <p>Each {@code .md} 文件使用由 {@code ---} 分隔的可选 YAML frontmatter
+
+ * 接下来是成为系统提示覆盖的 Markdown 正文。的
+
+ * frontmatter 字段为：{@code name}、{@code description}、{@code disallowedTools}、
+
+ * {@code model} 和 {@code maxTurns}。
+
  */
 public final class AgentLoader {
 
@@ -33,10 +46,15 @@ public final class AgentLoader {
     private AgentLoader() {}
 
     /**
-     * Loads all agent definitions: built-in specs, then user-level, then project-level.
+
+     * 加载所有代理定义：内置规范，然后是用户级别，然后是项目级别。
+
      *
-     * @param projectRoot the project root directory (may be {@code null} to skip project-level)
-     * @return a map of agent name to spec
+
+     * @param projectRoot 项目根目录（可能是{@code null}以跳过项目级别）
+
+     * @return a  代理名称到规格的映射
+
      */
     public static Map<String, SubAgentSpec> loadAll(Path projectRoot) {
         var loader = new AgentLoader();
@@ -55,7 +73,9 @@ public final class AgentLoader {
     }
 
     /**
-     * Returns a sorted list of all loaded agent names.
+
+     * 返回所有加载的代理名称的排序列表。
+
      */
     public static List<String> listNames(Map<String, SubAgentSpec> agents) {
         var names = new ArrayList<>(agents.keySet());
@@ -82,17 +102,20 @@ public final class AgentLoader {
                     SubAgentSpec spec = parseAgentFile(path);
                     agents.put(spec.name(), spec);
                 } catch (Exception e) {
-                    // Skip invalid files silently, matching Go behaviour
+                    // 静默跳过无效文件，匹配 Go 行为
                 }
             }
         } catch (IOException e) {
-            // Directory unreadable -- skip
+            // 目录不可读--跳过
         }
     }
 
     /**
-     * Parses a single agent definition file. The file may optionally begin
-     * with YAML frontmatter between {@code ---} delimiters.
+
+     * 解析单个代理定义文件。该文件可以选择开始
+
+     * {@code ---} 分隔符之间有 YAML frontmatter。
+
      */
     static SubAgentSpec parseAgentFile(Path path) throws IOException {
         String content = Files.readString(path);
@@ -102,7 +125,7 @@ public final class AgentLoader {
         String body = trimmed;
 
         if (trimmed.startsWith("---")) {
-            // Split on the second "---" delimiter
+            // 在第二个 "---" 分隔符上拆分
             int firstEnd = trimmed.indexOf("---", 3);
             if (firstEnd >= 0) {
                 yamlBlock = trimmed.substring(3, firstEnd).strip();

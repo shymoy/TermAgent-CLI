@@ -18,7 +18,11 @@ class ToolSearchTest {
 
     private ToolSearchTool toolSearch;
 
-    /** A deferred tool with a realistic-sized schema (~500 chars JSON per tool). */
+    /**
+
+     * 具有实际大小架构的延迟工具（每个工具约 500 个字符 JSON）。
+
+     */
     private static Tool heavyDeferredTool(String name, int propCount) {
         return new Tool() {
             @Override public String name() { return name; }
@@ -49,7 +53,11 @@ class ToolSearchTest {
         };
     }
 
-    /** A minimal deferred tool for testing. */
+    /**
+
+     * 用于测试的最小延迟工具。
+
+     */
     private static Tool deferredTool(String name) {
         return new Tool() {
             @Override public String name() { return name; }
@@ -69,7 +77,11 @@ class ToolSearchTest {
         };
     }
 
-    /** A minimal non-deferred tool for testing. */
+    /**
+
+     * 用于测试的最小非延迟工具。
+
+     */
     private static Tool normalTool(String name) {
         return new Tool() {
             @Override public String name() { return name; }
@@ -114,24 +126,24 @@ class ToolSearchTest {
 
     @Test
     void testToolSearchMarksDiscovered() {
-        // Before search, WebFetch should not be discovered
+        // 在搜索之前，WebFetch 不应该被发现
         assertFalse(registry.isDiscovered("WebFetch"));
 
-        // Execute ToolSearch with select query
+        // 使用选择查询执行 ToolSearch
         var result = toolSearch.execute(Map.of("query", "select:WebFetch"));
         assertFalse(result.isError(), "ToolSearch should succeed");
         assertTrue(result.output().contains("1 tool(s)"));
         assertTrue(result.output().contains("full schemas are now loaded"));
 
-        // After search, WebFetch should be marked discovered
+        // 搜索后，WebFetch 应标记为已发现
         assertTrue(registry.isDiscovered("WebFetch"));
-        // Monitor should still not be discovered
+        // 监视器不应被发现
         assertFalse(registry.isDiscovered("Monitor"));
     }
 
     @Test
     void testDiscoveredInSchemas() {
-        // Mark WebFetch as discovered
+        // 将 WebFetch 标记为已发现
         registry.markDiscovered("WebFetch");
 
         var schemas = registry.getAllSchemas("anthropic");
@@ -145,14 +157,14 @@ class ToolSearchTest {
 
     @Test
     void testGetDeferredToolNames() {
-        // Initially both deferred tools should be in the deferred list
-        // (ToolSearch itself is NOT deferred — it must always be available)
+        // 最初，两个延迟工具都应位于延迟列表中
+        // （ToolSearch 本身是 NOT 延迟的 - 它必须始终可用）
         var deferred = registry.getDeferredToolNames();
         assertTrue(deferred.contains("WebFetch"));
         assertTrue(deferred.contains("Monitor"));
         assertFalse(deferred.contains("ToolSearch"), "ToolSearch should not be deferred");
 
-        // Discover WebFetch
+        // 发现 WebFetch
         registry.markDiscovered("WebFetch");
 
         deferred = registry.getDeferredToolNames();
@@ -164,11 +176,11 @@ class ToolSearchTest {
     void testDeferredTokenSavings() throws Exception {
         var reg = new ToolRegistry();
 
-        // 2 normal tools with small schemas
+        // 2 个具有小模式的普通工具
         reg.register(normalTool("Read"));
         reg.register(normalTool("Write"));
 
-        // 50 deferred tools with realistic schemas (5-10 properties each)
+        // 50 个具有现实模式的延迟工具（每个工具 5-10 个属性）
         for (int i = 0; i < 50; i++) {
             int propCount = 5 + (i % 6); // varies between 5 and 10
             reg.register(heavyDeferredTool("DeferredTool_" + i, propCount));
@@ -176,16 +188,16 @@ class ToolSearchTest {
 
         var mapper = new ObjectMapper();
 
-        // With deferred tools hidden
+        // 隐藏延迟工具
         var schemasDeferred = reg.getAllSchemas("anthropic");
         int sizeDeferred = mapper.writeValueAsString(schemasDeferred).length();
 
-        // Discover all 50 deferred tools
+        // 发现全部 50 个延迟工具
         for (int i = 0; i < 50; i++) {
             reg.markDiscovered("DeferredTool_" + i);
         }
 
-        // With all tools visible
+        // 所有工具可见
         var schemasAll = reg.getAllSchemas("anthropic");
         int sizeAll = mapper.writeValueAsString(schemasAll).length();
 
@@ -205,28 +217,28 @@ class ToolSearchTest {
         reg.register(deferredTool("WebFetch"));
         reg.register(deferredTool("Monitor"));
 
-        // Deferred tools should NOT appear in getAllSchemas
+        // 延迟工具应出现在 getAllSchemas 中 NOT
         var schemas = reg.getAllSchemas("anthropic");
         var names = schemas.stream().map(s -> (String) s.get("name")).toList();
         assertTrue(names.contains("Bash"), "Normal tool should be in schemas");
         assertFalse(names.contains("WebFetch"), "Deferred WebFetch should NOT be in schemas");
         assertFalse(names.contains("Monitor"), "Deferred Monitor should NOT be in schemas");
 
-        // getDeferredToolNames should return both deferred tools
+        // getDeferredToolNames 应返回两个延迟工具
         var deferred = reg.getDeferredToolNames();
         assertTrue(deferred.contains("WebFetch"));
         assertTrue(deferred.contains("Monitor"));
 
-        // Discover one tool
+        // 发现一种工具
         reg.markDiscovered("WebFetch");
 
-        // WebFetch should now appear in schemas
+        // WebFetch 现在应该出现在模式中
         schemas = reg.getAllSchemas("anthropic");
         names = schemas.stream().map(s -> (String) s.get("name")).toList();
         assertTrue(names.contains("WebFetch"), "Discovered WebFetch should now appear in schemas");
         assertFalse(names.contains("Monitor"), "Undiscovered Monitor should still NOT appear");
 
-        // getDeferredToolNames should only return Monitor
+        // getDeferredToolNames 应该只返回 Monitor
         deferred = reg.getDeferredToolNames();
         assertFalse(deferred.contains("WebFetch"), "Discovered WebFetch should not be in deferred names");
         assertTrue(deferred.contains("Monitor"), "Monitor should still be in deferred names");

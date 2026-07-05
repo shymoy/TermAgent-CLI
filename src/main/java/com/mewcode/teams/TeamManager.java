@@ -16,7 +16,9 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * Manages multi-agent teams with mailbox-based communication.
+
+ * 通过基于邮箱的通信管理多代理团队。
+
  */
 public class TeamManager {
 
@@ -83,7 +85,7 @@ public class TeamManager {
         return TeamMode.IN_PROCESS;
     }
 
-    // ── Inner classes ──────────────────────────────────────────────────
+    // ── 内部类──────────────────────────────────────────────────
 
     private static Path teamsBaseDir() {
         return Path.of(System.getProperty("user.dir"), ".mewcode", "teams");

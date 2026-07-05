@@ -12,8 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * In-memory task manager for tracking background sub-agent tasks.
- * Accumulates notifications that the parent agent can drain between turns.
+
+ * 用于跟踪后台子代理任务的内存中任务管理器。
+
+ * 累积父代理可以在轮次之间耗尽的通知。
+
  */
 public class SubAgentTaskManager {
 
@@ -105,7 +108,9 @@ public class SubAgentTaskManager {
     }
 
     /**
-     * Spawn a sub-agent in a background virtual thread, tracked by this manager.
+
+     * 在后台虚拟线程中生成一个子代理，由该管理器跟踪。
+
      */
     public String spawnSubAgent(
             com.mewcode.llm.LlmClient client,
@@ -119,10 +124,15 @@ public class SubAgentTaskManager {
     }
 
     /**
-     * Spawn variant that lets the caller pre-seed the child agent's
-     * tool-result decision log with a clone of the parent's state. Used by
-     * the fork path so parent and child share a byte-identical prompt-cache
-     * prefix on tool_use_ids that exist in their shared history.
+
+     * 生成变体，让调用者预先播种子代理的
+
+     * 带有父状态克隆的工具结果决策日志。使用者
+
+     * 分叉路径，以便父级和子级共享字节相同的提示缓存
+
+     * 共享历史记录中存在的 tool_use_ids 的前缀。
+
      */
     public String spawnSubAgent(
             com.mewcode.llm.LlmClient client,

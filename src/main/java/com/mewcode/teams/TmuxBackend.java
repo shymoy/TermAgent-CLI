@@ -5,7 +5,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
- * Tmux backend for spawning teammates in separate tmux windows.
+
+ * Tmux 后端，用于在单独的 tmux 窗口中生成队友。
+
  */
 public final class TmuxBackend {
 
@@ -28,11 +30,11 @@ public final class TmuxBackend {
 
     public static void stopTmuxTeammate(String paneName) {
         try {
-            // Send Ctrl-C first
+            // 首先发送 Ctrl-C
             new ProcessBuilder("tmux", "send-keys", "-t", paneName, "C-c")
                     .start().waitFor(5, TimeUnit.SECONDS);
             Thread.sleep(200);
-            // Then kill the window
+            // 然后杀死窗口
             new ProcessBuilder("tmux", "kill-window", "-t", paneName)
                     .start().waitFor(5, TimeUnit.SECONDS);
         } catch (Exception e) {

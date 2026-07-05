@@ -92,7 +92,7 @@ public class GrepTool implements Tool {
                 ? null
                 : FileSystems.getDefault().getPathMatcher("glob:" + include);
 
-        // Collect files first, then sort for deterministic output
+        // 首先收集文件，然后排序以获得确定性输出
         var files = new ArrayList<Path>();
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -149,7 +149,7 @@ public class GrepTool implements Tool {
                     }
                 }
             } catch (IOException e) {
-                // Skip files that can't be read
+                // 跳过无法读取的文件
             }
         }
 
@@ -160,7 +160,9 @@ public class GrepTool implements Tool {
     }
 
     /**
-     * Check if a file is binary by reading up to 512 bytes and looking for null bytes.
+
+     * 通过读取最多 512 字节并查找空字节来检查文件是否为二进制文件。
+
      */
     private static boolean isBinaryFile(Path file) {
         try (InputStream is = Files.newInputStream(file)) {

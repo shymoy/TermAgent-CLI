@@ -8,12 +8,19 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * Persists prompt history as a JSONL file (one JSON object per line).
+
+ * 将提示历史记录保留为 JSONL 文件（每行一个 JSON 对象）。
+
  *
- * <p>Each line has the shape {@code {"text":"user input","ts":1234567890}}
- * where {@code ts} is a Unix epoch second. Consecutive duplicate entries are
- * suppressed, and the store acts as a circular buffer capped at
- * {@value #MAX_ENTRIES} entries.
+
+ * <p>每条线的形状为 {@code {"text":"user input","ts":1234567890}}
+
+ * 其中 {@code ts} 是 Unix 纪元秒。连续的重复条目是
+
+ * 被抑制，并且存储充当循环缓冲区，上限为
+
+ * {@value #MAX_ENTRIES} 条目。
+
  */
 public class HistoryStore {
 
@@ -23,12 +30,20 @@ public class HistoryStore {
     private final Path filePath;
     private final List<String> entries = new ArrayList<>();
 
-    /** Default constructor &mdash; stores history in {@code ~/.mewcode/prompt_history.jsonl}. */
+    /**
+
+     * 默认构造函数 - 将历史记录存储在 {@code ~/.mewcode/prompt_history.jsonl} 中。
+
+     */
     public HistoryStore() {
         this(Path.of(System.getProperty("user.home"), ".mewcode", "prompt_history.jsonl"));
     }
 
-    /** Testable constructor that accepts an explicit file path. */
+    /**
+
+     * 接受显式文件路径的可测试构造函数。
+
+     */
     public HistoryStore(Path filePath) {
         this.filePath = filePath;
     }
@@ -38,9 +53,13 @@ public class HistoryStore {
     // ------------------------------------------------------------------
 
     /**
-     * Reads the JSONL file and populates the in-memory entry list.
-     * Malformed lines and entries with an empty {@code text} field are silently
-     * skipped, matching the Go behaviour.
+
+     * 读取 JSONL 文件并填充内存条目列表。
+
+     * 格式错误的行和带有空 {@code text} 字段的条目将被静默处理
+
+     * 跳过，匹配 Go 行为。
+
      */
     public void load() {
         entries.clear();
@@ -60,11 +79,11 @@ public class HistoryStore {
                         }
                     }
                 } catch (Exception ignored) {
-                    // skip malformed lines
+                    // 跳过格式错误的行
                 }
             }
         } catch (IOException ignored) {
-            // file unreadable — start with empty history
+            // 文件不可读 — 从空历史记录开始
         }
     }
 
@@ -73,28 +92,37 @@ public class HistoryStore {
     // ------------------------------------------------------------------
 
     /**
-     * Appends a new entry to the history.
+
+     * 将新条目添加到历史记录中。
+
      *
+
      * <ul>
-     *   <li>If {@code text} equals the last entry, the call is a no-op (dedup).</li>
-     *   <li>When the list exceeds {@value #MAX_ENTRIES}, the oldest entries are
-     *       trimmed from the front.</li>
-     *   <li>The entire file is rewritten with fresh timestamps on each append.</li>
+
+     * <li>如果 {@code text} 等于最后一个条目，则调用是无操作（重复数据删除）。</li>
+
+     * <li>当列表超过{@value #MAX_ENTRIES}时，最旧的条目是
+
+     * 从前面修剪。</li>
+
+     * <li>整个文件被重写，每个追加都有新的时间戳。</li>
+
      * </ul>
+
      */
     public void append(String text) {
         if (text == null || text.isEmpty()) {
             return;
         }
 
-        // Deduplicate consecutive identical entries.
+        // 删除连续相同条目的重复数据。
         if (!entries.isEmpty() && entries.getLast().equals(text)) {
             return;
         }
 
         entries.add(text);
 
-        // Circular-buffer trim.
+        // 圆形缓冲装饰。
         if (entries.size() > MAX_ENTRIES) {
             int excess = entries.size() - MAX_ENTRIES;
             entries.subList(0, excess).clear();
@@ -107,17 +135,29 @@ public class HistoryStore {
     // Accessors
     // ------------------------------------------------------------------
 
-    /** Returns an unmodifiable snapshot of the current entries. */
+    /**
+
+     * 返回当前条目的不可修改的快照。
+
+     */
     public List<String> getEntries() {
         return List.copyOf(entries);
     }
 
-    /** Number of entries currently held. */
+    /**
+
+     * 当前持有的条目数。
+
+     */
     public int size() {
         return entries.size();
     }
 
-    /** Returns the entry at the given index. */
+    /**
+
+     * 返回给定索引处的条目。
+
+     */
     public String get(int index) {
         return entries.get(index);
     }
@@ -126,7 +166,11 @@ public class HistoryStore {
     // Internals
     // ------------------------------------------------------------------
 
-    /** Rewrites the full JSONL file from the in-memory list. */
+    /**
+
+     * 重写内存列表中的完整 JSONL 文件。
+
+     */
     private void writeToDisk() {
         try {
             Files.createDirectories(filePath.getParent());
@@ -145,7 +189,7 @@ public class HistoryStore {
                 writer.newLine();
             }
         } catch (IOException ignored) {
-            // best-effort persistence
+            // 尽力坚持
         }
     }
 }

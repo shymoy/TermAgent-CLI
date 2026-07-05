@@ -9,14 +9,23 @@ import java.util.*;
 import java.util.stream.Stream;
 
 /**
- * Manages skill discovery, loading, and context generation.
+
+ * 管理技能发现、加载和上下文生成。
+
  * <p>
- * Phase-1 loading reads only frontmatter (fast startup); {@link #getFull}
- * triggers a phase-2 re-read of the body on each call (hot reload).
+
+ * 第一阶段加载只读取frontmatter（快速启动）； {@link #getFull}
+
+ * 每次调用时都会触发阶段 2 重新读取正文（热加载）。
+
  * <p>
- * Three-tier loading via {@link #loadCatalog}: builtins → user global
- * ({@code ~/.mewcode/skills/}) → project ({@code .mewcode/skills/}),
- * with later tiers overriding earlier ones by name.
+
+ * 通过 {@link #loadCatalog} 进行三层加载：内置 → 用户全局
+
+ * ({@code ~/.mewcode/skills/})→项目({@code .mewcode/skills/}),
+
+ * 后面的层按名称覆盖前面的层。
+
  */
 public class SkillCatalog {
 
@@ -66,9 +75,13 @@ public class SkillCatalog {
     }
 
     /**
-     * Returns the skill with its body loaded. For disk-backed skills the
-     * body is re-read on every call (hot reload). On read failure the
-     * previously-cached body is preserved.
+
+     * 返回已加载正文的技能。对于磁盘支持的技能
+
+     * 每次调用时都会重新读取正文（热加载）。读取失败时
+
+     * 先前缓存的正文将被保留。
+
      */
     public Optional<Skill> getFull(String name) {
         Skill skill = skills.get(name);
@@ -85,7 +98,7 @@ public class SkillCatalog {
                 return Optional.of(reloaded);
             }
         } catch (IOException ignored) {
-            // Keep the previously-cached body
+            // 保留之前缓存的body
         }
         return Optional.of(skill);
     }
@@ -98,13 +111,18 @@ public class SkillCatalog {
         return sources.getOrDefault(name, "");
     }
 
-    // ── Three-tier catalog loading ─────────────────────────────────────
+    // ── 三层目录加载──────────────────────────────────────
 
     /**
-     * Builds a catalog by merging three tiers, with later sources
-     * overriding earlier ones by name (project wins over user wins over
-     * builtin). Phase-1: only frontmatter is read; bodies stay empty
-     * until {@link #getFull} is called.
+
+     * 通过合并三层和后来的来源来构建目录
+
+     * 按名称覆盖早期的项目（项目赢得用户胜利
+
+     * 内置）。 Phase-1：只读取frontmatter；尸体空着
+
+     * 直到调用{@link #getFull}。
+
      */
     public static SkillCatalog loadCatalog(String workDir) {
         SkillCatalog c = new SkillCatalog();
@@ -115,13 +133,13 @@ public class SkillCatalog {
             c.register(skill, "builtin");
         }
 
-        // Tier 2: user global
+        // 第 2 层：用户全局
         String home = System.getProperty("user.home");
         if (home != null) {
             c.loadTier(Path.of(home, ".mewcode", "skills"), "user");
         }
 
-        // Tier 3: project
+        // 第三层：项目
         c.loadTier(Path.of(workDir, ".mewcode", "skills"), "project");
 
         return c;
@@ -137,8 +155,11 @@ public class SkillCatalog {
     }
 
     /**
-     * Walk {@code dir}; each immediate subdirectory is treated as a skill.
-     * Missing or inaccessible directories are silently ignored.
+
+     * 行走{@code dir}；每个直接子目录都被视为一项技能。
+
+     * 丢失或无法访问的目录将被默默忽略。
+
      */
     public void loadFromDirectory(Path dir) {
         loadTier(dir, dir.toString());
@@ -162,11 +183,14 @@ public class SkillCatalog {
         }
     }
 
-    // ── Context building ───────────────────────────────────────────────
+    // ── 情境建构────────────────────────────────────────────────
 
     /**
-     * Build a context block suitable for system-prompt injection that
-     * contains the prompt bodies of the given active skill names.
+
+     * 构建一个适合系统提示注入的上下文块
+
+     * 包含给定主动技能名称的提示体。
+
      */
     public String buildActiveContext(Set<String> activeSkillNames) {
         if (activeSkillNames == null || activeSkillNames.isEmpty()) {
@@ -184,16 +208,16 @@ public class SkillCatalog {
         return sb.toString();
     }
 
-    // ── Loading internals ───────────────────────────────────────────────
+    // ── 加载内部结构────────────────────────────────────────────────
 
     private static Skill loadSkill(Path dir) throws IOException {
-        // Strategy 1: skill.yaml + prompt.md
+        // 策略一：skill.yaml + prompt.md
         Path metaPath = dir.resolve("skill.yaml");
         if (Files.isRegularFile(metaPath)) {
             return loadFromYamlAndPrompt(dir, metaPath);
         }
 
-        // Strategy 2: SKILL.md with optional YAML front-matter
+        // 策略 2：SKILL.md 以及可选的 YAML 前端内容
         Path mdPath = dir.resolve("SKILL.md");
         if (Files.isRegularFile(mdPath)) {
             String content = Files.readString(mdPath);
@@ -248,7 +272,7 @@ public class SkillCatalog {
 
         SkillMeta meta = metaFromMap(frontMatter, dir);
 
-        // Auto-generate description from first non-empty, non-heading line if absent
+        // 如果不存在，则从第一个非空、非标题行自动生成描述
         String description = meta.description();
         if (description == null || description.isBlank()) {
             for (String line : body.split("\n")) {
@@ -289,7 +313,7 @@ public class SkillCatalog {
 
         String mode = stringVal(map, "mode");
         if (mode == null || mode.isBlank()) {
-            // Backward compat: context: "fork" treated same as mode: "fork"
+            // 向后兼容：上下文："fork" 与模式相同："fork"
             String ctx = stringVal(map, "context");
             if ("fork".equals(ctx)) {
                 mode = "fork";

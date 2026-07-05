@@ -10,7 +10,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Main loop for in-process teammates.
+
+ * 进程中队友的主循环。
+
  */
 public final class TeammateRunner {
 
@@ -22,8 +24,11 @@ public final class TeammateRunner {
     private TeammateRunner() {}
 
     /**
-     * Runs a teammate agent loop in the current thread. Blocks until shutdown
-     * or context cancellation (thread interrupt).
+
+     * 在当前线程中运行队友代理循环。阻塞直至关闭
+
+     * 或上下文取消（线程中断）。
+
      */
     public static void runInProcessTeammate(
             TeamManager.Team team,
@@ -33,7 +38,7 @@ public final class TeammateRunner {
     ) {
         BlockingQueue<AgentEvent> eventOut = new LinkedBlockingQueue<>(32);
 
-        // Create progress tracker and attach to member
+        // 创建进度跟踪器并附加到会员
         var progress = new TeammateProgress(member.getName(), team.getName(), SpinnerVerbs.random());
         member.progress = progress;
 
@@ -41,21 +46,21 @@ public final class TeammateRunner {
             member.conv.addSystemReminder(addendum);
         }
 
-        // Inject any pending mailbox messages
+        // 注入任何待处理的邮箱消息
         injectPendingMessages(team, member.getName(), member.conv);
 
-        // First turn: use initial prompt
+        // 第一回合：使用初始提示
         member.conv.addUserMessage(initialPrompt);
 
         // Run agent
         var agentQueue = member.agent.run(member.conv);
         drainAgentEvents(agentQueue, eventOut, progress);
 
-        // Send idle notification
+        // 发送空闲通知
         team.sendMessage(member.getName(), LEAD_NAME,
                 createIdleNotification(member.getName(), "completed initial task"));
 
-        // Subsequent turns: wait for mailbox messages
+        // 后续轮次：等待邮箱消息
         while (!Thread.currentThread().isInterrupted()) {
             var result = waitForNextPromptOrShutdown(team, member.getName());
             if (result.shutdown || result.prompt == null) break;
@@ -80,8 +85,11 @@ public final class TeammateRunner {
     }
 
     /**
-     * Drains lead's mailbox across all teams, returning formatted notification strings.
-     * Called by the Lead's NotificationFn each iteration.
+
+     * 清除所有团队中领导的邮箱，返回格式化的通知字符串。
+
+     * 每次迭代由领导的NotificationFn 调用。
+
      */
     public static List<String> drainLeadMailbox(TeamManager teamMgr) {
         if (teamMgr == null) return List.of();
@@ -106,7 +114,9 @@ public final class TeammateRunner {
     }
 
     /**
-     * Builds the system reminder addendum for a teammate.
+
+     * 为队友构建系统提醒附录。
+
      */
     public static String buildTeammateAddendum(String teamName, String memberName, List<String> otherMembers) {
         var sb = new StringBuilder();
@@ -123,7 +133,9 @@ public final class TeammateRunner {
     }
 
     /**
-     * Injects unread mailbox messages as a system reminder.
+
+     * 插入未读邮箱消息作为系统提醒。
+
      */
     public static void injectPendingMessages(
             TeamManager.Team team, String memberName,
@@ -149,7 +161,7 @@ public final class TeammateRunner {
                 java.time.Instant.now().toString());
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────
+    // ── 内部帮手──────────────────────────────────────────────
 
     private record WaitResult(String prompt, boolean shutdown) {}
 
@@ -172,7 +184,7 @@ public final class TeammateRunner {
                 }
             }
 
-            // Format as prompt
+            // 设置为提示格式
             var sb = new StringBuilder("You have new messages from your team:\n\n");
             for (var msg : messages) {
                 sb.append("From ").append(msg.from()).append(": ").append(msg.text()).append("\n\n");
@@ -197,7 +209,7 @@ public final class TeammateRunner {
             if (event == null) return;
             sink.offer(event);
 
-            // Record progress from agent events
+            // 记录代理事件的进度
             if (event instanceof AgentEvent.ToolUseEvent tue) {
                 progress.recordToolUse(tue.toolName(), tue.args());
             } else if (event instanceof AgentEvent.UsageEvent ue) {

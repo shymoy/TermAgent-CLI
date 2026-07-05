@@ -5,14 +5,23 @@ package com.mewcode.teams;
 import java.util.Set;
 
 /**
- * Coordinator mode restricts the Lead agent's tools to coordination-only.
- * When active, Lead can only use a limited set of tools.
+
+ * 协调员模式将首席代理的工具限制为仅用于协调。
+
+ * 当处于活动状态时，Lead 只能使用一组有限的工具。
+
  *
- * Four-phase workflow:
- * 1. Research: Lead explores the problem space
- * 2. Synthesis: Lead creates a plan and task decomposition
- * 3. Implementation: Lead spawns teammates to execute tasks
- * 4. Verification: Lead verifies results and resolves conflicts
+
+ * 四阶段工作流程：
+
+ * 1. 研究：领导探索问题空间
+
+ * 2. 综合：领导创建计划和任务分解
+
+ * 3.执行：Lead催生队友执行任务
+
+ * 4. 验证：领导验证结果并解决冲突
+
  */
 public final class Coordinator {
 

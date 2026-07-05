@@ -18,15 +18,25 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * A tool that launches a sub-agent to handle a focused task. The sub-agent
- * runs in its own virtual thread with an isolated conversation and a filtered
- * tool registry (based on the chosen {@link SubAgentSpec}).
+
+ * 启动子代理来处理重点任务的工具。子代理
+
+ * 在其自己的虚拟线程中运行，具有隔离的对话和过滤的对话
+
+ * 工具注册表（基于所选的 {@link SubAgentSpec}）。
+
  *
- * <p>Implements {@link Tool} so it can be registered in a {@link ToolRegistry}
- * and invoked by the parent agent via the standard tool-call mechanism.
+
+ * <p>实现{@link Tool}，因此可以在{@link ToolRegistry}中注册
+
+ * 并由父代理通过标准工具调用机制调用。
+
  *
- * <p>{@link #shouldDefer()} returns {@code true} so this tool's schema is only
- * provided to the model when explicitly fetched via ToolSearch.
+
+ * <p>{@link #shouldDefer()} 返回 {@code true}，因此该工具的架构仅
+
+ * 通过 ToolSearch 显式获取时提供给模型。
+
  */
 public class AgentTool implements Tool {
 
@@ -35,25 +45,53 @@ public class AgentTool implements Tool {
     private final String protocol;
     private final ProviderConfig providerConfig;
 
-    /** Optional: resolves model aliases ("haiku", "sonnet", "opus") to LlmClient instances. */
+    /**
+
+     * 可选：将模型别名（"haiku"、"sonnet"、"opus"）解析为 LlmClient 实例。
+
+     */
     private Function<String, LlmClient> modelResolver;
 
-    /** Optional: loaded agent definitions (builtins + user + project). */
+    /**
+
+     * 可选：加载代理定义（内置+用户+项目）。
+
+     */
     private Map<String, SubAgentSpec> agentSpecs;
 
-    /** Optional: receives progress events while the sub-agent runs. */
+    /**
+
+     * 可选：在子代理运行时接收进度事件。
+
+     */
     private Consumer<SubAgentProgress> progressListener;
 
-    /** Optional: task manager for background agent execution. */
+    /**
+
+     * 可选：用于后台代理执行的任务管理器。
+
+     */
     private SubAgentTaskManager taskManager;
 
-    /** Optional: parent conversation for fork support. */
+    /**
+
+     * 可选：家长对话以获得分叉支持。
+
+     */
     private ConversationManager parentConversation;
 
-    /** Optional: worktree manager for isolation mode. */
+    /**
+
+     * 可选：隔离模式的工作树管理器。
+
+     */
     private com.mewcode.worktree.WorktreeManager worktreeManager;
 
-    /** Optional: team manager for team_name registration. */
+    /**
+
+     * 可选：用于 team_name 注册的团队经理。
+
+     */
     private com.mewcode.teams.TeamManager teamManager;
 
     private static final String FORK_BOILERPLATE_TAG = "<fork_boilerplate>";
@@ -102,11 +140,17 @@ public class AgentTool implements Tool {
     }
 
     /**
-     * Parent agent's tool-result decision log. Fork children Clone() it at
-     * spawn time so they make the same decisions on tool_use_ids inherited
-     * from the parent — necessary to keep the prompt-cache prefix
-     * byte-identical across parent and child. Non-fork sub-agents (those
-     * with subagent_type) start with a fresh state.
+
+     * 父代理的工具结果决策日志。分叉子项 Clone() 于
+
+     * 生成时间，以便他们对继承的 tool_use_ids 做出相同的决定
+
+     * 来自父级 - 保留提示缓存前缀所必需的
+
+     * 父级和子级之间的字节相同。非分叉子代理（那些
+
+     * 与 subagent_type）从一个新的状态开始。
+
      */
     private com.mewcode.toolresult.ContentReplacementState parentReplacementState;
 
@@ -122,7 +166,7 @@ public class AgentTool implements Tool {
         this.teamManager = teamManager;
     }
 
-    // ---- Tool interface ----
+    // ---- 工具界面 ----
 
     @Override
     public String name() {
@@ -236,7 +280,7 @@ public class AgentTool implements Tool {
         String isolation = getStringArg(args, "isolation");
         String teamName = getStringArg(args, "team_name");
 
-        // Team-member path: check BEFORE fork/subagent so team_name is never skipped.
+        // 团队成员路径：检查 BEFORE 分支/子代理，这样 team_name 就不会被跳过。
         if (teamName != null && !teamName.isEmpty() && teamManager != null) {
             SubAgentSpec spec = (subagentType != null && !subagentType.isEmpty())
                     ? resolveSpec(subagentType) : resolveSpec("general-purpose");
@@ -244,12 +288,12 @@ public class AgentTool implements Tool {
             return runAsTeammate(spec, teamName, description, prompt, modelOverride, isolation);
         }
 
-        // Fork path: no subagent_type specified.
+        // 分叉路径：未指定 subagent_type。
         if (subagentType == null || subagentType.isEmpty()) {
             return runFork(description, prompt, modelOverride);
         }
 
-        // Resolve the spec
+        // 解决规范
         SubAgentSpec spec = resolveSpec(subagentType);
         if (spec == null) {
             String available = (agentSpecs != null)
@@ -288,19 +332,19 @@ public class AgentTool implements Tool {
             return ToolResult.error("Error: fork requires task manager for background execution");
         }
 
-        // Check for nested fork
+        // 检查嵌套叉子
         for (var msg : parentConversation.getMessages()) {
             if (msg.getContent() != null && msg.getContent().contains(FORK_BOILERPLATE_TAG)) {
                 return ToolResult.error("Error: cannot fork from a forked agent. Use subagent_type to spawn a definition-based agent instead.");
             }
         }
 
-        // Build forked conversation: copy parent messages + append fork boilerplate + task
+        // 构建分叉对话：复制父消息 + 附加分叉样板 + 任务
         ConversationManager forkedConv = buildForkedConversation(parentConversation, prompt);
 
         LlmClient subClient = selectClient(null, modelOverride);
-        // Fork always runs in background; the parent's replacement state is
-        // passed so the child inherits a clone (byte-stable prompt cache).
+        // Fork 始终在后台运行；父代的替换状态是
+        // 传递，因此子进程继承一个克隆（字节稳定提示缓存）。
         String taskId = taskManager.spawnSubAgent(
                 subClient, parentRegistry, protocol, providerConfig, SubAgentSpec.GENERAL_PURPOSE,
                 FORK_BOILERPLATE + "\n\nYour task:\n" + prompt,
@@ -316,7 +360,7 @@ public class AgentTool implements Tool {
         for (var msg : parent.getMessages()) {
             if (msg.getToolUses() != null && !msg.getToolUses().isEmpty()
                     && (msg.getToolResults() == null || msg.getToolResults().isEmpty())) {
-                // Assistant message with pending tool_use - patch with placeholder results
+                // 带有待处理 tool_use 的助理消息 - 带有占位符结果的补丁
                 forked.addAssistantFull(msg.getContent(), msg.getThinkingBlocks(), msg.getToolUses());
                 var placeholders = msg.getToolUses().stream()
                         .map(tu -> new com.mewcode.conversation.ToolResultBlock(
@@ -345,7 +389,7 @@ public class AgentTool implements Tool {
         int maxTurns = spec.maxTurns() > 0 ? spec.maxTurns() : 200;
         subAgent.setMaxIterations(maxTurns);
 
-        // Worktree isolation via AgentWorktree API
+        // 通过 AgentWorktree API 进行工作树隔离
         com.mewcode.worktree.AgentWorktree.Result wtResult = null;
         if ("worktree".equals(isolation) && worktreeManager != null) {
             byte[] rndBytes = new byte[4];
@@ -355,7 +399,7 @@ public class AgentTool implements Tool {
                 wtResult = com.mewcode.worktree.AgentWorktree.create(
                         slug, worktreeManager.getProjectRoot(), worktreeManager.getSymlinkDirs());
                 subAgent.setWorkDir(wtResult.worktreePath());
-                // Inject worktree notice into prompt
+                // 将工作树通知插入提示中
                 String notice = com.mewcode.worktree.AgentWorktree.buildNotice(
                         System.getProperty("user.dir"), wtResult.worktreePath());
                 prompt = notice + "\n\n" + prompt;
@@ -406,7 +450,7 @@ public class AgentTool implements Tool {
                 }
 
                 case AgentEvent.LoopComplete lc -> {
-                    // Agent finished
+                    // 代理完毕
                     double totalTime = elapsedSeconds(startNanos);
                     emitProgress(description, spec.name(), false, true, toolCount, totalTime);
 
@@ -415,7 +459,7 @@ public class AgentTool implements Tool {
                         result = "(agent produced no output)";
                     }
 
-                    // Worktree cleanup via WorktreeChanges API (fail-closed)
+                    // 通过 WorktreeChanges API 清理工作树（失败关闭）
                     String wtInfo = "";
                     if (wtResult != null) {
                         if (com.mewcode.worktree.WorktreeChanges.hasChanges(
@@ -435,8 +479,8 @@ public class AgentTool implements Tool {
                 }
 
                 default -> {
-                    // ThinkingText, ThinkingComplete, ToolUseEvent, TurnComplete, UsageEvent, etc.
-                    // -- consumed but not surfaced to the parent
+                    // ThinkingText、ThinkingComplete、ToolUseEvent、TurnComplete、UsageEvent 等
+                    // -- 已消耗但未呈现给父级
                 }
             }
         }
@@ -461,7 +505,7 @@ public class AgentTool implements Tool {
             return ToolResult.error("Error: team '%s' not found. Create it first with TeamCreate.".formatted(teamName));
         }
 
-        // Deduplicate member name
+        // 删除重复的成员名称
         String memberName = description.replaceAll("\\s+", "-").toLowerCase();
         if (memberName.length() > 30) memberName = memberName.substring(0, 30);
         int suffix = 2;
@@ -471,19 +515,19 @@ public class AgentTool implements Tool {
         }
 
         ToolRegistry subRegistry = ToolFilter.filterForAgent(parentRegistry, spec);
-        // Add coordination tools for teammates
+        // 为队友添加协调工具
         subRegistry.register(new com.mewcode.teams.TeamTools.SendMessageTool(teamManager, memberName));
 
         LlmClient subClient = selectClient(spec.model(), modelOverride);
 
-        // Gather peer names for addendum
+        // 收集附录的同行名称
         var otherMembers = team.memberNames();
 
-        // Build addendum
+        // 构建附录
         String addendum = com.mewcode.teams.TeammateRunner.buildTeammateAddendum(
                 teamName, memberName, otherMembers);
 
-        // Optional worktree isolation
+        // 可选的工作树隔离
         String workdir = null;
         if ("worktree".equals(isolation) && worktreeManager != null) {
             try {
@@ -501,7 +545,7 @@ public class AgentTool implements Tool {
             }
         }
 
-        // Spawn teammate
+        // 生成队友
         try {
             var spawnResult = com.mewcode.teams.SpawnDispatcher.spawnTeammate(
                     new com.mewcode.teams.SpawnDispatcher.SpawnConfig(

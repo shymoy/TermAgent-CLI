@@ -8,9 +8,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Covers usage parsing for the real-token compaction anchor: the StreamEnd
- * record carries cache read/creation buckets, and OpenAI-compatible usage is
- * split so the cached portion is not double-counted in the anchor sum.
+
+ * 涵盖真实token压缩锚点的用法解析：StreamEnd
+
+ * record携带缓存读取/创建桶，OpenAI兼容用法是
+
+ * 分割，以便缓存部分不会在锚总和中重复计算。
+
  */
 class UsageParsingTest {
 
@@ -26,8 +30,8 @@ class UsageParsingTest {
 
     @Test
     void streamEndDefaultsCacheFieldsToZero() {
-        // The 3-arg constructor (used by providers without a cache breakdown)
-        // must leave both cache buckets at 0.
+        // 3-arg 构造函数（由没有缓存崩溃的供应商使用）
+        // 必须将两个缓存桶保留为 0。
         var end = new StreamEvent.StreamEnd("end_turn", 100, 20);
         assertEquals(0, end.cacheReadTokens());
         assertEquals(0, end.cacheCreationTokens());
@@ -44,8 +48,8 @@ class UsageParsingTest {
 
     @Test
     void openAiCompatUsageSplitsCachedFromPrompt() {
-        // prompt_tokens includes cached_tokens; extractUsage must split them so
-        // input + cacheRead reconstructs the original prompt total exactly once.
+        // Prompt_tokens 包括cached_tokens； extractUsage 必须将它们分开，这样
+        // input + cacheRead 只重构一次原始提示总数。
         JsonNode root = parse("""
                 {"usage":{"prompt_tokens":10000,"completion_tokens":500,
                           "prompt_tokens_details":{"cached_tokens":7000}}}""");

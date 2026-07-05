@@ -11,16 +11,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Reconstructs {@link ContentReplacementState} from a transcript so that
- * resume sessions make the same decisions the original session made.
+ * 从会话记录重建 {@link ContentReplacementState}，
+ * 使恢复后的会话与原会话使用相同的工具结果替换决策。
  *
  * <ol>
- *   <li>Seed {@code seenIds} with every candidate tool_use_id present in
- *       {@code messages} — anything visible at this point has been sent to
- *       the model, so its decision is implicitly frozen.</li>
- *   <li>Overlay {@code replacements} from on-disk records.</li>
- *   <li>Optionally gap-fill from {@code inheritedReplacements} (parent's
- *       live state for fork-resume cases).</li>
+ *   <li>将 {@code messages} 中已出现的每个 {@code tool_use_id}
+ *       加入 {@code seenIds}。这些内容已发送给模型，因此决策必须冻结。</li>
+ *   <li>将磁盘记录中的固定预览覆盖到 {@code replacements}。</li>
+ *   <li>如果存在 {@code inheritedReplacements}，用父 Agent 的实时状态
+ *       填补 fork-resume 场景中的缺口。</li>
  * </ol>
  */
 public final class ContentReplacementLifecycle {
@@ -56,4 +55,3 @@ public final class ContentReplacementLifecycle {
         return state;
     }
 }
-

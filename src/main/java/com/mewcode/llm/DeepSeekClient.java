@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mewcode.config.ProviderConfig;
 
 /**
- * DeepSeek V4 adapter implemented on top of the OpenAI-compatible Chat
- * Completions transport.
+ * 基于 OpenAI 兼容的 Chat Completions 传输层实现 DeepSeek V4 适配。
  */
 public class DeepSeekClient extends OpenAiCompatClient {
 

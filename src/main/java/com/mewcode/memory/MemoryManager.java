@@ -50,7 +50,7 @@ public class MemoryManager {
         ensureDir(projectMemDirPath);
     }
 
-    // ---- Directory accessors (for memory recall) ----
+    // ---- 目录访问器（用于内存调用）----
 
     /** 返回用户级记忆目录（~/.mewcode/memory/） */
     public Path userMemDir() {
@@ -102,7 +102,7 @@ public class MemoryManager {
         clearDir(projectMemDirPath);
     }
 
-    // ---- Memory file record ----
+    // ---- 记忆文件记录 ----
 
     /** 一个记忆文件的元数据 */
     public record MemoryFile(String path, String filename, String name, String description, String type) {}
@@ -167,7 +167,7 @@ public class MemoryManager {
         } catch (IOException ignored) {}
     }
 
-    // ---- Build system-reminder section ----
+    // ---- 构建系统-提醒部分 ----
 
     /**
      * 构建记忆系统的 system-reminder 部分，包含 MEMORY.md 索引内容。
@@ -204,7 +204,7 @@ public class MemoryManager {
         }
     }
 
-    // ---- Extraction via LLM ----
+    // ---- 通过 LLM 提取 ----
 
     /**
      * 通过 LLM 从对话中提取记忆。提取结果写为独立 .md 文件并更新 MEMORY.md 索引。
@@ -369,7 +369,7 @@ public class MemoryManager {
         }
     }
 
-    // ---- Custom instructions ----
+    // ---- 定制说明 ----
 
     /**
      * 加载指令文件：支持用户级（~/.mewcode/MEWCODE.md）、项目级（git root 到 workDir 逐层）、

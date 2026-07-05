@@ -5,8 +5,11 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Spinner verb phrases displayed while the agent is working.
- * Ported from Go: internal/tui/verbs.go
+
+ * 代理工作时显示的旋转动词短语。
+
+ * 从 Go 移植：internal/tui/verbs.go
+
  */
 public final class SpinnerVerbs {
 
@@ -119,27 +122,39 @@ public final class SpinnerVerbs {
             "Zigzagging"
     );
 
-    /** Returns a random spinner verb (present-participle form). */
+    /**
+
+     * 返回一个随机旋转动词（现在分词形式）。
+
+     */
     public static String random() {
         return VERBS.get(ThreadLocalRandom.current().nextInt(VERBS.size()));
     }
 
-    /** Returns an unmodifiable view of all spinner verbs. */
+    /**
+
+     * 返回所有微调动词的不可修改视图。
+
+     */
     public static List<String> all() {
         return VERBS;
     }
 
     /**
-     * Converts a present-participle verb ("Thinking") to a simple past-tense
-     * form ("Thought").  Handles a handful of irregular cases and falls back
-     * to a mechanical strip-"ing" + "ed" rule for regular verbs.
+
+     * 将现在分词动词 ("Thinking") 转换为简单过去时
+
+     * 形式（"Thought"）。  处理少数不规范案件并回退
+
+     * 规则动词的机械条带-"ing" + "ed" 规则。
+
      */
     public static String pastTense(String verb) {
         if (verb == null || verb.isEmpty()) {
             return verb;
         }
 
-        // Irregular / special-case mappings
+        // 不规则/特殊情况映射
         return switch (verb) {
             case "Thinking"  -> "Thought";
             case "Brewing"   -> "Brewed";
@@ -160,40 +175,51 @@ public final class SpinnerVerbs {
 
         String base = verb.substring(0, verb.length() - 3); // strip "ing"
 
-        // Verbs whose base already ends with 'e' that was dropped before -ing:
-        //   e.g. "Composing" -> base "Compos" -> restore 'e' -> "Composed"
-        // Detect by checking if the stem looks like it had a silent-e
-        // (consonant ending that needs an 'e' restored).
-        // Simple heuristic: if base ends in a consonant cluster typical
-        // of silent-e verbs, restore the 'e'.
+        // 词根已经以 'e' 结尾的动词在 -ing 之前被删除：
+
+        // e.g。 "Composing" -> 基础 "Compos" -> 恢复 'e' -> "Composed"
+
+        // 通过检查茎看起来是否有静音 e 来检测
+
+        // （需要恢复“e”的辅音结尾）。
+
+        // 简单启发式：如果碱基以辅音簇结尾，则典型
+
+        // 不发音的 e 动词，恢复“e”。
         char last = base.charAt(base.length() - 1);
 
         if (isDoubledConsonant(base)) {
-            // e.g. "Spinning" -> base "Spinn" -> "Spinned" (drop duplicate)
+            // e.g。 "Spinning" -> 基础 "Spinn" -> "Spinned"（删除重复项）
             return base.substring(0, base.length() - 1) + "ed";
         }
 
         if ("aeiouy".indexOf(last) >= 0) {
-            // base ends in vowel: just add 'd'
-            // e.g. "Cascading" -> base "Cascad" -- not vowel, skip
-            // Actually "Ideating" -> base "Ideat" -- not vowel either
-            // This handles: base ends in vowel like "Grooving" -> "Groov" -> no.
-            // Let's just add "ed" in most cases.
+            // 基数以元音结尾：只需添加“d”
+            // e.g。 "Cascading" -> 基数 "Cascad" -- 非元音，跳过
+            // 实际上 "Ideating" -> 基数 "Ideat" ——也不是元音
+            // 这处理：基数以元音结尾，如 "Grooving" -> "Groov" -> no。
+            // 大多数情况下我们只需添加 "ed" 即可。
             return base + "d";
         }
 
-        // For stems that originally had a silent-e (e.g., "Composing" from "compose"):
-        // common pattern is base ending in s, z, c, g, v, t, l, n, r + "ing"
-        // We restore the 'e' and add 'd'.
+        // 对于最初具有不发音-e 的词干（e.g.、来自 "compose" 的 "Composing"）：
+
+        // 常见模式是以 s、z、c、g、v、t、l、n、r + "ing" 结尾的碱基
+
+        // 我们恢复“e”并添加“d”。
         if ("szgvcln".indexOf(last) >= 0) {
             return base + "ed";
         }
 
-        // Default: add "ed" to the base
+        // 默认：将 "ed" 添加到基础上
         return base + "ed";
     }
 
-    /** Checks whether the base ends with two identical consonants (doubled). */
+    /**
+
+     * 检查基部是否以两个相同的辅音（双音）结尾。
+
+     */
     private static boolean isDoubledConsonant(String base) {
         if (base.length() < 2) return false;
         char c1 = base.charAt(base.length() - 1);

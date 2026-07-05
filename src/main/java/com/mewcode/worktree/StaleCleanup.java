@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Removes stale agent/workflow worktrees.
+
+ * 删除陈旧的代理/工作流工作树。
+
  */
 public final class StaleCleanup {
 
@@ -35,8 +37,11 @@ public final class StaleCleanup {
     }
 
     /**
-     * Scans the worktrees directory and removes stale ephemeral worktrees
-     * older than cutoff. Three-layer safety filter.
+
+     * 扫描工作树目录并删除陈旧的临时工作树
+
+     * 早于截止日期。三层安全过滤器。
+
      */
     public static int cleanup(String repoRoot, Instant cutoff) {
         Path dir = Path.of(repoRoot, ".mewcode", "worktrees");
@@ -51,13 +56,13 @@ public final class StaleCleanup {
             for (Path entry : entries.toList()) {
                 String slug = entry.getFileName().toString();
 
-                // Layer 1: only ephemeral patterns
+                // 第 1 层：仅短暂模式
                 if (!isEphemeral(slug)) continue;
 
                 String wtPath = entry.toString();
                 if (wtPath.equals(currentPath)) continue;
 
-                // Layer 2: age check
+                // 第二层：年龄检查
                 try {
                     var attrs = Files.readAttributes(entry, BasicFileAttributes.class);
                     if (attrs.lastModifiedTime().toInstant().isAfter(cutoff)) continue;
@@ -65,7 +70,7 @@ public final class StaleCleanup {
                     continue;
                 }
 
-                // Layer 3: fail-closed change checks (-uno skips untracked)
+                // 第 3 层：失败关闭更改检查（-uno 跳过未跟踪的）
                 String statusOut = runGitQuiet(wtPath, "--no-optional-locks", "status", "--porcelain", "-uno");
                 if (statusOut == null || !statusOut.isBlank()) continue;
 
@@ -88,7 +93,9 @@ public final class StaleCleanup {
     }
 
     /**
-     * Starts a background cleanup loop using a ScheduledExecutorService.
+
+     * 使用 ScheduledExecutorService 启动后台清理循环。
+
      */
     public static void startCleanupLoop(
             ScheduledExecutorService executor,

@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * JSON-backed shared task list with dependency tracking.
+
+ * JSON 支持的共享任务列表，具有依赖性跟踪。
+
  */
 public class SharedTaskStore {
 

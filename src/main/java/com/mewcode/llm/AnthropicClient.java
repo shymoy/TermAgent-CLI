@@ -40,22 +40,21 @@ public class AnthropicClient implements LlmClient {
         this.systemPrompt = systemPrompt;
         this.maxOutputTokens = cfg.resolvedMaxOutputTokens();
 
-        // Layer 2 of context-window resolution: best-effort fetch from the
-        // provider's models endpoint, cached back onto cfg so a later
-        // cfg.resolvedContextWindow() can use it. Never blocks startup or
-        // throws — any failure silently degrades to the built-in table.
+        // 上下文窗口解析的第二层：尝试从供应商的模型端点获取数值，
+        // 并回填到 cfg 供 resolvedContextWindow() 使用。该过程不得阻塞启动，
+        // 任何失败都静默回退到内置模型表。
         cfg.setFetchedContextWindow(fetchModelContextWindow());
     }
 
     /**
-     * Fetch the model's context window from {@code GET {base_url}/v1/models/{model}}
-     * (Anthropic protocol only), reading {@code ModelInfo.max_input_tokens}.
+     * 通过 {@code GET {base_url}/v1/models/{model}} 获取 Anthropic 协议模型的
+     * 上下文窗口，读取 {@code ModelInfo.max_input_tokens}。
      *
-     * <p>Best-effort: returns {@code 0} on any error (network, auth, unknown
-     * model, missing field, timeout). Never throws — callers treat 0 as
-     * "unavailable" and fall through to the next resolution layer.
+     * <p>这是尽力而为的查询：网络、认证、未知模型、字段缺失或超时
+     * 都返回 {@code 0}，不向调用方抛出异常。调用方会把 0 视为不可用，
+     * 继续使用下一层解析策略。
      *
-     * @return max input tokens (&gt; 0) on success, or {@code 0} on any failure
+     * @return 成功时返回大于 0 的最大输入 token 数，失败时返回 {@code 0}
      */
     int fetchModelContextWindow() {
         try {
@@ -69,7 +68,7 @@ public class AnthropicClient implements LlmClient {
                     .filter(v -> v > 0)
                     .orElse(0);
         } catch (Exception | Error e) {
-            // Swallow everything: this must never block or break startup.
+            // 该查询只是增强信息，任何失败都不应影响应用启动。
             return 0;
         }
     }
@@ -356,7 +355,7 @@ public class AnthropicClient implements LlmClient {
             var prev = merged.getLast();
             var curr = messages.get(i);
             if (prev.role().equals(curr.role())) {
-                // Both are simple text content — merge them
+                // 相邻的同角色纯文本消息可以直接合并。
                 var prevContent = prev.content();
                 var currContent = curr.content();
                 if (prevContent.isString() && currContent.isString()) {
@@ -365,7 +364,7 @@ public class AnthropicClient implements LlmClient {
                             .content(prevContent.asString() + "\n\n" + currContent.asString())
                             .build());
                 } else {
-                    // One has block params — just append as-is, let API handle
+                    // 任一消息使用内容块时保持原样，交由 API 处理。
                     merged.add(curr);
                 }
             } else {
@@ -395,23 +394,20 @@ public class AnthropicClient implements LlmClient {
     }
 
     /**
-     * Attach an ephemeral cache_control marker to the last content block of
-     * the final user-role message in {@code messages}. Anthropic caches the
-     * prefix up to (and including) this block; subsequent requests with a
-     * byte-identical prefix hit the cache.
+     * 在 {@code messages} 中最后一条 user 消息的末尾内容块上
+     * 附加临时 {@code cache_control} 标记。Anthropic 会缓存截至该内容块的前缀，
+     * 后续请求在前缀字节完全一致时命中缓存。
      *
-     * <p>Mutates {@code messages} in place by swapping the trailing
-     * MessageParam for a rebuilt one with cache_control attached — the
-     * SDK's builder is immutable, so we can't edit in place at the field
-     * level.
+     * <p>该方法会就地替换 {@code messages} 中的末尾 {@code MessageParam}。
+     * SDK 构建的对象不可变，因此需要重建整条消息，
+     * 而不能直接修改内容块字段。
      */
     private void markLastUserTailForCache(List<MessageParam> messages) {
         for (int i = messages.size() - 1; i >= 0; i--) {
             var msg = messages.get(i);
             if (msg.role() != MessageParam.Role.USER) continue;
-            // The user message's content is either a string or block list.
-            // We need block form to attach cache_control, so up-convert if
-            // it's a string.
+            // user 消息可能是字符串或内容块列表。
+            // cache_control 只能附着在内容块上，因此需要先将字符串提升为块。
             var content = msg.content();
             List<ContentBlockParam> blocks;
             if (content.string().isPresent()) {
@@ -488,17 +484,16 @@ public class AnthropicClient implements LlmClient {
     }
 
     /**
-     * Extract a usage counter from a {@link MessageDeltaUsage}.
+     * 从 {@link MessageDeltaUsage} 中提取指定的 token 用量。
      *
-     * <p>First tries the typed Optional accessor (works when the SDK version
-     * maps the field). Falls back to {@code _additionalProperties()} for
-     * Anthropic-compatible providers (e.g. MiniMax) that may include
-     * non-standard fields the SDK doesn't map into the typed model.
+     * <p>首先使用 SDK 的强类型 Optional 访问器。如果当前 SDK 没有映射该字段，
+     * 则回退到 {@code _additionalProperties()}，以支持 MiniMax 等 Anthropic 兼容供应商
+     * 返回的非标准字段。
      *
-     * @param typed    the Optional from the typed accessor (e.g. {@code usage.inputTokens()})
-     * @param usage    the delta usage object (for additionalProperties fallback)
-     * @param jsonKey  the raw JSON key to look up in additionalProperties
-     * @return the token count, or 0 if absent / unparseable
+     * @param typed SDK 强类型访问器返回的 Optional，例如 {@code usage.inputTokens()}
+     * @param usage 流式增量的用量对象，用于 additionalProperties 回退
+     * @param jsonKey additionalProperties 中待查找的原始 JSON 键
+     * @return token 数；字段不存在或无法解析时返回 0
      */
     private static int deltaUsageLong(Optional<Long> typed,
                                       MessageDeltaUsage usage,
@@ -506,7 +501,7 @@ public class AnthropicClient implements LlmClient {
         if (typed.isPresent()) {
             return typed.get().intValue();
         }
-        // Fallback: some providers put extra fields into additionalProperties
+        // 一些兼容供应商会把额外字段放入 additionalProperties。
         var extra = usage._additionalProperties();
         if (extra != null && extra.containsKey(jsonKey)) {
             var val = extra.get(jsonKey);

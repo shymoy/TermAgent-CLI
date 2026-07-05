@@ -27,7 +27,10 @@ public class McpManager {
 
     private static final Pattern ENV_VAR = Pattern.compile("\\$\\{([^}]+)}");
 
+    /** MCP 服务初始化后需要暴露给上层的元数据。 */
     public record ServerInfo(String name, String instructions) {}
+
+    /** 批量连接结果；允许调用方在部分服务失败时继续使用其余服务。 */
     public record ConnectResult(List<Tool> tools, List<ServerInfo> servers, List<String> errors) {}
 
     private final Map<String, McpServerConfig> configs = new LinkedHashMap<>();
@@ -39,6 +42,10 @@ public class McpManager {
         }
     }
 
+    /**
+     * 依次初始化所有已配置的 MCP 服务并收集其工具。
+     * 成功创建的客户端由本管理器持有，调用方应在应用退出时调用 {@link #shutdown()}。
+     */
     public ConnectResult connectAll() {
         var tools = new ArrayList<Tool>();
         var servers = new ArrayList<ServerInfo>();
@@ -71,12 +78,14 @@ public class McpManager {
         return new ConnectResult(List.copyOf(tools), List.copyOf(servers), List.copyOf(errors));
     }
 
+    /** 连接全部服务并将成功发现的工具注册到应用工具表中。 */
     public List<String> registerAllTools(ToolRegistry registry) {
         var result = connectAll();
         for (var t : result.tools()) registry.register(t);
         return result.errors();
     }
 
+    /** 尽力关闭所有已初始化客户端；单个客户端关闭失败不会影响其余客户端。 */
     public void shutdown() {
         for (var client : clients.values()) {
             try { client.closeGracefully(); } catch (Exception ignored) {}
@@ -145,7 +154,7 @@ public class McpManager {
         });
     }
 
-    // ── MCP Tool Wrapper ────────────────────────────────────────────────
+    // ── MCP 工具包装器────────────────────────────────────────────────
 
     private static class McpToolWrapper implements Tool {
         private final String serverName;
@@ -167,6 +176,8 @@ public class McpManager {
         }
 
         @Override public ToolCategory category() { return ToolCategory.COMMAND; }
+
+        // MCP 服务可能暴露大量工具，默认通过工具搜索按需加入模型上下文。
         @Override public boolean shouldDefer() { return true; }
 
         @Override public Map<String, Object> schema() {

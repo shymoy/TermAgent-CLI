@@ -22,7 +22,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ContextCompactorTest {
 
-    /** Minimal stub: emits a fixed <summary> and ends, regardless of input. */
+    /**
+
+     * 最小存根：发出固定的 <summary> 并结束，无论输入如何。
+
+     */
     private static final class StubSummaryClient implements LlmClient {
         @Override
         public BlockingQueue<StreamEvent> stream(ConversationManager conv,
@@ -50,8 +54,8 @@ class ContextCompactorTest {
 
     @Test
     void currentTokensFallsBackToCharEstimateWhenNoAnchor() {
-        // Cold start: no real usage yet, so currentTokens must equal the legacy
-        // whole-conversation character estimate.
+        // 冷启动：尚未实际使用，因此 currentTokens 必须等于旧版
+        // 整个对话的性格估计。
         ConversationManager conv = new ConversationManager();
         conv.addUserMessage("hello world");
         conv.addAssistantMessage("a reply with some content");
@@ -66,11 +70,11 @@ class ContextCompactorTest {
         ConversationManager conv = new ConversationManager();
         conv.addUserMessage("first turn");          // index 0
         conv.addAssistantMessage("first response"); // index 1
-        // Anchor after the first two messages with a real baseline far below any
-        // character estimate (e.g. a cache hit reported a small real input).
+        // 在前两条消息之后锚定，其真实基线远低于任何消息
+        // 字符估计（e.g。缓存命中报告了一个小的实际输入）。
         var anchor = new ContextCompactor.UsageAnchor(5_000, conv.size());
 
-        // Two more messages appended after the anchor.
+        // 锚点后还附加了两条消息。
         conv.addUserMessage("second turn");
         conv.addAssistantMessage("second response");
 
@@ -80,14 +84,14 @@ class ContextCompactorTest {
         int current = ContextCompactor.currentTokens(conv.getMessages(), anchor);
         assertEquals(5_000 + increment, current,
                 "anchored → baseline plus estimate of only the appended messages");
-        // And it must ignore the character cost of the pre-anchor messages.
+        // 并且它必须忽略预锚消息的字符成本。
         assertTrue(current < ContextCompactor.estimateTokens(conv.getMessages()) + 5_000);
     }
 
     @Test
     void currentTokensFallsBackWhenAnchorCountOutOfRange() {
-        // A stale anchor whose count exceeds the (now compacted) message list must
-        // not throw and must degrade to the whole-conversation estimate.
+        // 计数超过（现已压缩）消息列表的陈旧锚点必须
+        // 不抛出并且必须降级为整个会话的估计。
         ConversationManager conv = new ConversationManager();
         conv.addUserMessage("only message");
 
@@ -141,12 +145,12 @@ class ContextCompactorTest {
         assertEquals(raw, ContextCompactor.formatCompactSummary(raw));
     }
 
-    // ── messagesToKeep window ──────────────────────────────────────────
+    // ── messagesToKeep 窗口 ────────────────────────────────────────────
 
     @Test
     void keepStartReturnsZeroWhenEverythingFitsInKeepWindow() {
-        // Fewer than MIN_KEEP_MESSAGES messages → the whole thing is the keep
-        // window, nothing left to summarize.
+        // 少于 MIN_KEEP_MESSAGES 消息 → 整个事情都是保留的
+        // 窗口，没有什么可总结的。
         ConversationManager conv = new ConversationManager();
         conv.addUserMessage("one");
         conv.addAssistantMessage("two");
@@ -155,8 +159,8 @@ class ContextCompactorTest {
 
     @Test
     void keepStartLeavesAtLeastMinKeepMessagesForSummarizablePrefix() {
-        // Many small messages: MIN_KEEP_MESSAGES (=5) is the floor that trips
-        // first, so the keep window is exactly the last 5 messages.
+        // 多条小信息：MIN_KEEP_MESSAGES(=5)为跳闸楼层
+        // 首先，所以保留窗口恰好是最后 5 条消息。
         ConversationManager conv = new ConversationManager();
         for (int i = 0; i < 20; i++) {
             conv.addUserMessage("u" + i);
@@ -171,12 +175,12 @@ class ContextCompactorTest {
     @Test
     void compactKeepsRecentMessagesVerbatim() {
         ConversationManager conv = new ConversationManager();
-        // Old prefix that will be summarized away.
+        // 将被总结掉的旧前缀。
         for (int i = 0; i < 12; i++) {
             conv.addUserMessage("old user msg " + i + " " + "x".repeat(200));
             conv.addAssistantMessage("old reply " + i + " " + "y".repeat(200));
         }
-        // Recent verbatim tail with distinctive markers.
+        // 最近的逐字尾部带有独特的标记。
         conv.addUserMessage("RECENT_MARKER_ALPHA latest question");
         conv.addAssistantMessage("RECENT_MARKER_BETA latest answer");
 
@@ -185,11 +189,11 @@ class ContextCompactorTest {
         assertFalse(result.isEmpty(), "compaction should have run");
 
         List<Message> after = conv.getMessages();
-        // Summary user message must lead (no assistant ack after it).
+        // 摘要用户消息必须在前面（之后没有助手确认）。
         assertTrue(after.get(0).getContent().contains("本次会话延续自之前的对话"));
         assertTrue(after.get(0).getContent().contains("old prefix summarized"));
 
-        // The recent originals must survive verbatim — not be replaced by the summary.
+        // 最近的原件必须逐字保存——不能被摘要取代。
         String joined = after.stream().map(Message::getContent).reduce("", (a, b) -> a + "\n" + b);
         assertTrue(joined.contains("RECENT_MARKER_ALPHA latest question"),
                 "recent user message must be kept verbatim");
@@ -200,12 +204,12 @@ class ContextCompactorTest {
     @Test
     void compactDoesNotSplitToolUseToolResultPair() {
         ConversationManager conv = new ConversationManager();
-        // Filler prefix so there is something to summarize.
+        // 填充前缀所以有一些东西可以总结。
         for (int i = 0; i < 12; i++) {
             conv.addUserMessage("filler " + i + " " + "x".repeat(300));
             conv.addAssistantMessage("reply " + i + " " + "y".repeat(300));
         }
-        // A tool_use / tool_result pair right at the tail boundary.
+        // 位于尾部边界的 tool_use / tool_result 对。
         conv.addAssistantFull("calling tool", null,
                 List.of(new ToolUseBlock("tu-pair", "ReadFile", Map.of("path", "/x"))));
         conv.addToolResultsMessage(List.of(
@@ -215,15 +219,15 @@ class ContextCompactorTest {
 
         int keepStart = ContextCompactor.computeKeepStartIndex(conv.getMessages());
         Message boundary = conv.getMessages().get(keepStart);
-        // The keep window must never START on a tool_result-only user message,
-        // which would orphan it from its assistant tool_use.
+        // 保留窗口绝不能在仅 tool_result 用户消息上 START，
+        // 这会将其从辅助 tool_use 中孤立出来。
         boolean isOrphanResult = "user".equals(boundary.getRole())
                 && boundary.getToolResults() != null
                 && !boundary.getToolResults().isEmpty();
         assertFalse(isOrphanResult,
                 "keepStart must not land on an orphaned tool_result message");
 
-        // After compaction every kept tool_result must have its tool_use kept too.
+        // 压缩后，每个保留的 tool_result 也必须保留其 tool_use。
         ContextCompactor.forceCompact(conv, new StubSummaryClient(), 100_000, null, null);
         assertToolPairsBalanced(conv.getMessages());
     }
@@ -240,7 +244,7 @@ class ContextCompactorTest {
 
         int keepStartBefore = ContextCompactor.computeKeepStartIndex(conv.getMessages());
         List<Message> before = conv.getMessages();
-        // Serialized payload handed to the LLM must include only the prefix.
+        // 传递给 LLM 的序列化有效负载必须仅包含前缀。
         List<Message> prefix = before.subList(0, keepStartBefore);
         List<Message> kept = before.subList(keepStartBefore, before.size());
         assertTrue(prefix.stream().anyMatch(m -> m.getContent() != null
@@ -250,7 +254,7 @@ class ContextCompactorTest {
                 "the kept tail must sit outside the summarized prefix");
 
         ContextCompactor.forceCompact(conv, new StubSummaryClient(), 100_000, null, null);
-        // Kept tail still present verbatim after compaction.
+        // 压实后，尾巴仍然一字不差地存在。
         String joined = conv.getMessages().stream()
                 .map(Message::getContent).reduce("", (a, b) -> a + "\n" + b);
         assertTrue(joined.contains("KEPT_TAIL question"));
@@ -271,7 +275,11 @@ class ContextCompactorTest {
         assertEquals("only a couple", conv.getMessages().get(0).getContent());
     }
 
-    /** Assert every tool_result in the list has a matching earlier tool_use. */
+    /**
+
+     * 断言列表中的每个 tool_result 都有一个匹配的早期 tool_use。
+
+     */
     private static void assertToolPairsBalanced(List<Message> messages) {
         java.util.Set<String> seenToolUse = new java.util.HashSet<>();
         for (Message m : messages) {

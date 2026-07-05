@@ -16,12 +16,19 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Manages a named list of tasks persisted as JSON under
- * {@code .mewcode/tasks/<listId>.json}.
+
+ * 管理在下保存为 JSON 的命名任务列表
+
+ * {@code .mewcode/tasks/<listId>.json}。
+
  * <p>
- * Each mutation reloads the file, applies the change, and writes it back so
- * that concurrent processes sharing the same store see consistent data.
- * All public methods are {@code synchronized} to guard the in-process path.
+
+ * 每次修改都会重新加载文件，应用更改并将其写回，以便
+
+ * 共享同一存储的并发进程看到一致的数据。
+
+ * 所有公共方法都是 {@code synchronized} 来保护进程内路径。
+
  */
 public class TaskList {
 
@@ -62,7 +69,7 @@ public class TaskList {
         private List<String> blockedBy = new ArrayList<>();
         private Map<String, Object> metadata = new LinkedHashMap<>();
 
-        // Jackson needs a no-arg constructor
+        // Jackson 需要一个无参构造函数
         public Task() {}
 
         public String getId() { return id; }
@@ -112,7 +119,9 @@ public class TaskList {
     // ---- CRUD ----
 
     /**
-     * Creates a new task and persists the list.
+
+     * 创建一个新任务并保留该列表。
+
      */
     public synchronized Task create(String subject, String description, String activeForm,
                                     Map<String, Object> metadata) {
@@ -134,7 +143,9 @@ public class TaskList {
     }
 
     /**
-     * Returns a task by its ID, or empty if not found.
+
+     * 按任务 ID 返回任务，如果未找到则返回空。
+
      */
     public synchronized Optional<Task> get(String id) {
         return load().stream()
@@ -143,7 +154,9 @@ public class TaskList {
     }
 
     /**
-     * Lists all visible (non-internal) tasks.
+
+     * 列出所有可见（非内部）任务。
+
      */
     public synchronized List<Task> list() {
         List<Task> visible = new ArrayList<>();
@@ -157,15 +170,25 @@ public class TaskList {
     }
 
     /**
-     * Updates fields on an existing task. Returns the updated task and the list
-     * of changed field names, or empty if the task was not found.
+
+     * 更新现有任务的字段。返回更新后的任务和列表
+
+     * 已更改的字段名称，如果未找到任务则为空。
+
      *
-     * @param id      the task ID to update
-     * @param updates a map of field names to new values (same keys as the Go
-     *                implementation: subject, description, activeForm, status,
-     *                owner, addBlocks, addBlockedBy, metadata)
-     * @return a {@link UpdateResult} containing the task and changed fields,
-     *         or {@code Optional.empty()} when the task is not found
+
+     * @param id      要更新的任务ID
+
+     * @param updates a 字段名称到新值的映射（与 Go 相同的键）
+
+     * 实现：主题、描述、activeForm、状态、
+
+     * 所有者、addBlocks、addBlockedBy、元数据）
+
+     * @return a {@link UpdateResult} 包含任务和更改的字段，
+
+     * 或 {@code Optional.empty()} 未找到任务时
+
      */
     @SuppressWarnings("unchecked")
     public synchronized Optional<UpdateResult> update(String id, Map<String, Object> updates) {
@@ -182,7 +205,7 @@ public class TaskList {
             return Optional.empty();
         }
 
-        // Special case: status == "deleted" means remove the task entirely
+        // 特殊情况：status == "deleted" 表示完全删除任务
         Object statusVal = updates.get("status");
         if (statusVal instanceof String s && "deleted".equals(s)) {
             tasks.removeIf(t -> t.id.equals(id));
@@ -275,11 +298,13 @@ public class TaskList {
     }
 
     /**
-     * Result of an {@link #update} call.
+
+     * {@link #update} 调用的结果。
+
      */
     public record UpdateResult(Task task, List<String> changed) {}
 
-    // ---- persistence ----
+    // ---- 坚持 ----
 
     private List<Task> load() {
         try {
@@ -292,7 +317,7 @@ public class TaskList {
             }
             return MAPPER.readValue(data, new TypeReference<List<Task>>() {});
         } catch (IOException e) {
-            // Corrupted or unreadable file — start fresh
+            // 文件损坏或无法读取 — 重新开始
             return new ArrayList<>();
         }
     }

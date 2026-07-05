@@ -12,7 +12,9 @@ import java.security.SecureRandom;
 import java.util.Map;
 
 /**
- * Creates an isolated git worktree and switches the session into it.
+
+ * 创建一个独立的 git 工作树并将会话切换到其中。
+
  */
 public class EnterWorktreeTool implements Tool {
 

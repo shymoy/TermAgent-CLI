@@ -9,23 +9,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Per-agent snapshots that need to survive Layer 2 compaction.
+ * 保存每个 Agent 在第二层上下文压缩后仍需使用的快照。
  *
- * <p>Compact wipes the working transcript; without these records the
- * model would forget which files it had just read and which skill SOPs it
- * was operating under. {@link ContextCompactor#buildRecoveryAttachment}
- * renders the recorded data into a single attachment block that gets
- * appended to the post-compact summary message.
+ * <p>完整压缩会替换当前对话记录；如果不保留这些快照，
+ * 模型将忘记刚读取的文件以及正在执行的技能 SOP。
+ * {@link ContextCompactor#buildRecoveryAttachment} 会把这些记录渲染为一个附件块，
+ * 追加到压缩后的摘要消息中。
  *
- * <p>Thread-safe: tool callbacks may fire from multiple virtual threads in
- * the streaming executor.
+ * <p>该类是线程安全的，因为流式执行器可能从多个虚拟线程触发工具回调。
  */
 public final class RecoveryState {
 
-    /** Snapshot of what a file-reading tool last returned. */
+    /** 文件读取工具最后返回的内容的快照。 */
     public record FileReadRecord(String path, String content, Instant timestamp) {}
 
-    /** Snapshot of the SOP body delivered to the model when a skill ran. */
+    /** 技能执行时传给模型的 SOP 正文快照。 */
     public record SkillInvocationRecord(String name, String body, Instant timestamp) {}
 
     private final Object lock = new Object();
@@ -33,7 +31,7 @@ public final class RecoveryState {
 
     private final Map<String, SkillInvocationRecord> skills = new HashMap<>();
 
-    /** Overwrites any prior record for the same path so the latest snapshot wins. */
+    /** 覆盖同一路径的旧记录，使最新快照生效。 */
     public void recordFileRead(String path, String content) {
         if (path == null || path.isEmpty()) return;
 
@@ -42,7 +40,7 @@ public final class RecoveryState {
         }
     }
 
-    /** Overwrites any prior record for the same skill name. */
+    /** 覆盖同名技能的旧记录。 */
     public void recordSkillInvocation(String name, String body) {
         if (name == null || name.isEmpty()) return;
         synchronized (lock) {
@@ -50,7 +48,7 @@ public final class RecoveryState {
         }
     }
 
-    /** Returns up to {@code limit} file records, newest first. */
+    /** 按时间倒序返回最多 {@code limit} 条文件记录。 */
     public List<FileReadRecord> snapshotFiles(int limit) {
         List<FileReadRecord> out;
         synchronized (lock) {
@@ -63,7 +61,7 @@ public final class RecoveryState {
         return out;
     }
 
-    /** Returns every recorded skill, newest first. */
+    /** 按时间倒序返回全部技能记录。 */
     public List<SkillInvocationRecord> snapshotSkills() {
         List<SkillInvocationRecord> out;
         synchronized (lock) {

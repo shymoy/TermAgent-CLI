@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Unified dispatcher for teammate spawning across all backends.
+
+ * 统一调度程序，用于在所有后端生成队友。
+
  */
 public final class SpawnDispatcher {
 
@@ -72,12 +74,15 @@ public final class SpawnDispatcher {
     }
 
     /**
-     * Builds the shell command for a worker process.
-     * Format: cd '<workdir>' && '<mewcode>' --teammate --team-name <t> --agent-name <n>
+
+     * 为工作进程构建 shell 命令。
+
+     * 格式：cd '<workdir>' && '<mewcode>' --teammate --团队名称 <t> --代理名称 <n>
+
      */
     public static String buildTeammateCLI(String teamName, String memberName, String workdir) {
         String wd = workdir != null ? workdir : System.getProperty("user.dir");
-        // Find mewcode executable (assume it's the current JAR or on PATH)
+        // 找到mewcode可执行文件（假设它是当前的JAR或PATH上）
         String mewcode = ProcessHandle.current().info().command().orElse("mewcode");
         return "cd %s && %s --teammate --team-name %s --agent-name %s".formatted(
                 shellQuote(wd), shellQuote(mewcode), shellQuote(teamName), shellQuote(memberName));
@@ -89,10 +94,10 @@ public final class SpawnDispatcher {
     }
 
     private static void recordExternalMember(TeamManager.Team team, String name, String paneId) {
-        // For external backends, create a placeholder member
+        // 对于外部后端，创建占位符成员
         var member = new TeamManager.Member(name, null, null);
         member.active = true;
-        // Store paneId via field access (simple approach)
+        // 通过字段访问存储 paneId（简单方法）
         synchronized (team) {
             team.members.put(name, member);
         }

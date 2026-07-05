@@ -48,7 +48,7 @@ public class HookConfig {
     /** 命令/HTTP 请求的超时时间（秒），0 或不设表示使用默认值 */
     private int timeout;
 
-    // ---- getters & setters ----
+    // ---- 获取器和设置器 ----
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }

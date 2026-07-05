@@ -5,7 +5,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
- * iTerm2 backend for spawning teammates in separate iTerm2 tabs.
+
+ * iTerm2 后端，用于在单独的 iTerm2 选项卡中生成队友。
+
  */
 public final class ITermBackend {
 

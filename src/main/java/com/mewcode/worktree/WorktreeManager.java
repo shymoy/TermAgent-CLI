@@ -14,12 +14,19 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Manages git worktrees for parallel agent execution.
+
+ * 管理 git 工作树以实现并行代理执行。
+
  * <p>
- * Each worktree gets its own branch and working directory under
- * {@code .mewcode/worktrees/<branch>}. Symlink directories (e.g.
- * node_modules) are linked from the main project root so that
- * worktrees share heavy dependency trees.
+
+ * 每个工作树都有自己的分支和工作目录
+
+ * {@code .mewcode/worktrees/<branch>}。符号链接目录 (e.g.
+
+ * node_modules）从主项目根链接，以便
+
+ * 工作树共享重依赖树。
+
  */
 public class WorktreeManager {
 
@@ -42,13 +49,21 @@ public class WorktreeManager {
     public int getStaleCutoffHours() { return staleCutoffHours; }
 
     /**
-     * Creates a new git worktree for the given branch under
-     * {@code .mewcode/worktrees/<branch>}.
+
+     * 为给定分支创建一个新的 git 工作树
+
+     * {@code .mewcode/worktrees/<branch>}。
+
      *
-     * @param branch    the new branch name
-     * @param targetDir optional override for the worktree directory; when
-     *                  {@code null}, defaults to {@code .mewcode/worktrees/<branch>}
-     * @return metadata about the created worktree
+
+     * @param branch    新分支名称
+
+     * @param targetDir 工作树目录的可选覆盖；当
+
+     * {@code null}，默认为{@code .mewcode/worktrees/<branch>}
+
+     * @return metadata 关于创建的工作树
+
      */
     public synchronized WorktreeInfo create(String branch, Path targetDir) throws Exception {
         // 在执行任何 git 操作前校验分支名，防止路径穿越和非法字符
@@ -58,10 +73,10 @@ public class WorktreeManager {
                 ? targetDir
                 : Path.of(projectRoot, ".mewcode", "worktrees", branch);
 
-        // -B (uppercase) resets any orphan branch left behind by a removed worktree
+        // -B（大写）重置已删除的工作树留下的任何孤立分支
         String output = runGit(projectRoot, "git", "worktree", "add", "-B", branch, wtDir.toString());
 
-        // Post-creation setup: settings, hooks, symlinks, .worktreeinclude
+        // 创建后设置：设置、挂钩、符号链接、.worktreeinclude
         PostCreationSetup.perform(projectRoot, wtDir.toString(), symlinkDirs);
 
         var info = new WorktreeInfo(wtDir.toString(), branch, Instant.now());
@@ -70,7 +85,9 @@ public class WorktreeManager {
     }
 
     /**
-     * Removes a worktree by branch name.
+
+     * 按分支名称删除工作树。
+
      */
     public synchronized void remove(String branch) throws Exception {
         WorktreeInfo info = worktrees.get(branch);
@@ -83,10 +100,15 @@ public class WorktreeManager {
     }
 
     /**
-     * Lists worktrees by parsing {@code git worktree list --porcelain} output.
+
+     * 通过解析 {@code git worktree list --porcelain} 输出列出工作树。
+
      * <p>
-     * Falls back to the in-memory map when porcelain parsing yields no results
-     * (e.g. bare repos without linked worktrees).
+
+     * 当瓷器解析没有产生结果时，回退到内存中的映射
+
+     * （e.g。没有链接工作树的裸存储库）。
+
      */
     public synchronized List<WorktreeInfo> list() {
         try {
@@ -96,23 +118,30 @@ public class WorktreeManager {
                 return result;
             }
         } catch (Exception ignored) {
-            // fall through to in-memory map
+            // 落入内存映射
         }
         return new ArrayList<>(worktrees.values());
     }
 
     /**
-     * Returns the worktree info for a branch if it is tracked in memory.
+
+     * 如果在内存中跟踪分支，则返回该分支的工作树信息。
+
      */
     public synchronized Optional<WorktreeInfo> get(String branch) {
         return Optional.ofNullable(worktrees.get(branch));
     }
 
     /**
-     * Removes worktrees older than the given number of hours.
+
+     * 删除早于给定小时数的工作树。
+
      *
-     * @param cutoffHours maximum age in hours; uses the configured default when {@code <= 0}
-     * @return the number of worktrees removed
+
+     * @param cutoffHours 最大年龄（以小时为单位）； {@code <= 0} 时使用配置的默认值
+
+     * @return the  删除的工作树数量
+
      */
     public synchronized int cleanupStale(int cutoffHours) {
         int hours = cutoffHours > 0 ? cutoffHours : staleCutoffHours;
@@ -129,7 +158,7 @@ public class WorktreeManager {
                     it.remove();
                     removed++;
                 } catch (Exception ignored) {
-                    // best-effort cleanup
+                    // 尽力清理
                 }
             }
         }
@@ -137,7 +166,9 @@ public class WorktreeManager {
     }
 
     /**
-     * Removes all tracked worktrees (best-effort).
+
+     * 删除所有跟踪的工作树（尽力而为）。
+
      */
     public synchronized void removeAll() {
         var it = worktrees.entrySet().iterator();
@@ -146,17 +177,22 @@ public class WorktreeManager {
             try {
                 runGit(projectRoot, "git", "worktree", "remove", entry.getValue().path(), "--force");
             } catch (Exception ignored) {
-                // best-effort
+                // 尽力而为
             }
             it.remove();
         }
     }
 
     /**
-     * Detects uncommitted changes in a worktree via {@code git diff --stat}.
+
+     * 通过 {@code git diff --stat} 检测工作树中未提交的更改。
+
      *
-     * @param worktreePath the path of the worktree to inspect
-     * @return the diff stat output, or empty string if clean
+
+     * @param worktreePath 要检查的工作树的路径
+
+     * @return the diff 统计输出，如果干净则为空字符串
+
      */
     public static String detectChanges(String worktreePath) throws Exception {
         ProcessBuilder pb = new ProcessBuilder("git", "diff", "--stat");
@@ -180,7 +216,7 @@ public class WorktreeManager {
         return output.strip();
     }
 
-    // ---- internal helpers ----
+    // ---- 内部助手 ----
 
     private static String runGit(String workDir, String... command) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -205,13 +241,21 @@ public class WorktreeManager {
     }
 
     /**
-     * Parses porcelain output from {@code git worktree list --porcelain}.
-     * Each block is separated by a blank line and contains lines like:
+
+     * 解析 {@code git worktree list --porcelain} 的瓷器输出。
+
+     * 每个块由空行分隔，并包含如下行：
+
      * <pre>
-     * worktree /path/to/wt
+
+     * 工作树/路径/到/wt
+
      * HEAD abc123
-     * branch refs/heads/branch-name
+
+     * 分支参考/头/分支名称
+
      * </pre>
+
      */
     private static List<WorktreeInfo> parsePorcelain(String output) {
         List<WorktreeInfo> result = new ArrayList<>();
@@ -223,7 +267,7 @@ public class WorktreeManager {
                 currentPath = line.substring("worktree ".length()).strip();
             } else if (line.startsWith("branch ")) {
                 String ref = line.substring("branch ".length()).strip();
-                // refs/heads/my-branch -> my-branch
+                // refs/heads/我的分支 -> 我的分支
                 if (ref.startsWith("refs/heads/")) {
                     currentBranch = ref.substring("refs/heads/".length());
                 } else {
@@ -237,7 +281,7 @@ public class WorktreeManager {
                 currentBranch = null;
             }
         }
-        // handle last block (no trailing blank line)
+        // 处理最后一个块（无尾随空白行）
         if (currentPath != null && currentBranch != null) {
             result.add(new WorktreeInfo(currentPath, currentBranch, Instant.now()));
         }

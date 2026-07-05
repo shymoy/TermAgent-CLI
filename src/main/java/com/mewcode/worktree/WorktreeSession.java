@@ -6,7 +6,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Tracks the state of an active worktree session.
+
+ * 跟踪活动工作树会话的状态。
+
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WorktreeSession(

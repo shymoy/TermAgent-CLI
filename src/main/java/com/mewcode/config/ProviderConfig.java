@@ -28,11 +28,17 @@ public class ProviderConfig {
     private int maxOutputTokens;
 
     /**
-     * Layer-2 cache: context window auto-fetched from the provider's
-     * {@code /v1/models/{model}} endpoint. Backfilled once when the LLM client
-     * is constructed (see {@code AnthropicClient}); {@code null} means "not yet
-     * fetched / fetch failed". Kept here so {@link #resolvedContextWindow()},
-     * which has no client of its own, can read the result.
+
+     * 第 2 层缓存：从提供商的上下文窗口自动获取
+
+     * {@code /v1/models/{model}} 端点。 LLM客户端回填一次
+
+     * 已构造（参见 {@code AnthropicClient}）； {@code null} 表示 "not yet
+
+     * fetched / fetch failed"。留在这里所以{@link #resolvedContextWindow()}，
+
+     * 它没有自己的客户端，可以读取结果。
+
      */
     private volatile Integer fetchedContextWindow;
 
@@ -66,49 +72,73 @@ public class ProviderConfig {
     public void setMaxOutputTokens(int maxOutputTokens) { this.maxOutputTokens = maxOutputTokens; }
 
     /**
-     * Records the context window auto-fetched from the provider (layer 2).
-     * Pass a value &gt; 0 to cache it; anything else is ignored so a failed
-     * fetch never poisons the cache. Called once at client-construction time.
+
+     * 记录从供应商（第 2 层）自动获取的上下文窗口。
+
+     * 传递一个> 0的值来缓存它；其他任何内容都会被忽略，因此失败
+
+     * fetch 永远不会毒害缓存。在客户端构建时调用一次。
+
      */
     public void setFetchedContextWindow(int window) {
         if (window > 0) this.fetchedContextWindow = window;
     }
 
     /**
-     * Resolve the effective context window with four layers of fallback,
-     * highest priority first:
+
+     * 解决有效上下文窗口有四层后备，
+
+     * 最高优先级优先：
+
      *
+
      * <ol>
-     *   <li>Hand-written {@code context_window} from config (&gt; 0) — always wins.</li>
-     *   <li>Value auto-fetched from the provider's models endpoint and cached
-     *       via {@link #setFetchedContextWindow(int)} (Anthropic protocol only;
-     *       the fetch itself is best-effort and silently degrades on failure).</li>
-     *   <li>Built-in model-name → window table (substring match, {@link #windowForModel}).</li>
-     *   <li>Conservative default (200k for Claude, 128k otherwise).</li>
+
+     * <li> 从配置中手写的 {@code context_window} (> 0) — 总是获胜。</li>
+
+     * <li>Value 从供应商的模型端点自动获取并缓存
+
+     * 通过 {@link #setFetchedContextWindow(int)}（仅 Anthropic 协议；
+
+     * 获取本身是尽力而为的，并且在失败时默默地降级）。</li>
+
+     * <li>内置模型名称→窗口表（子字符串匹配，{@link #windowForModel}）.</li>
+
+     * <li>保守默认（Claude为200k，否则为128k）。</li>
+
      * </ol>
+
      */
     public int resolvedContextWindow() {
-        // Layer 1: explicit config override.
+        // 第 1 层：显式配置覆盖。
         if (contextWindow > 0) return contextWindow;
-        // Layer 2: auto-fetched from the provider (cached at client creation).
+        // 第 2 层：从供应商自动获取（在客户端创建时缓存）。
         Integer fetched = fetchedContextWindow;
         if (fetched != null && fetched > 0) return fetched;
-        // Layers 3 + 4: built-in table, then conservative default.
+        // Layers 3 + 4：内置表，然后保守默认。
         return windowForModel(model);
     }
 
     /**
-     * Built-in "model name → context window" lookup (layers 3 and 4).
-     * Matches by substring, from most specific to most generic. The values are
-     * sensible starting points only — they may drift as vendors update models,
-     * so when a value is wrong set {@code context_window} in config to override.
+
+     * 内置 "model name → context window" 查找（第 3 层和第 4 层）。
+
+     * 按子字符串匹配，从最具体到最通用。值为
+
+     * 仅合理的起点 - 随着供应商更新模型，它们可能会发生变化，
+
+     * 因此，当值错误时，请在配置中设置 {@code context_window} 进行覆盖。
+
      *
-     * @param model the model id (may be {@code null})
-     * @return a context window size in tokens; never 0
+
+     * @param model 型号ID（可能是{@code null}）
+
+     * @return a  上下文窗口大小（以标记为单位）；从来没有 0
+
      */
     public static int windowForModel(String model) {
         String m = model == null ? "" : model.toLowerCase();
-        // Most specific first.
+        // 最具体的先说。
         if (m.contains("1m") || m.contains("-1m")) return 1_000_000; // explicit 1M-context variants
         if (m.contains("gpt-4.1")) return 1_000_000;
         if (m.contains("gpt-4o")) return 128_000;

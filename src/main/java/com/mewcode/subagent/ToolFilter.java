@@ -8,45 +8,78 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Filters a {@link ToolRegistry} to produce a restricted registry suitable
- * for a sub-agent. The filtering layers (applied in order) are:
+
+ * 过滤 {@link ToolRegistry} 以生成合适的受限注册表
+
+ * 对于子代理。过滤层（按顺序应用）是：
+
  * <ul>
- *   <li>Layer 1: MCP tools (prefixed with "mcp__") always pass through.</li>
- *   <li>Layer 2: {@code ALWAYS_DISALLOWED} — globally blocked tools
- *       (TaskOutput, ExitPlanMode, EnterPlanMode, Agent, AskUserQuestion,
- *       TaskStop, Workflow).</li>
- *   <li>Layer 3: If the agent is a custom agent, also block
- *       {@code CUSTOM_AGENT_DISALLOWED}.</li>
- *   <li>Layer 4: In async mode, only permit {@code ASYNC_ALLOWED} tools.
- *       However, if the agent is an in-process teammate, also allow "Agent"
- *       and the {@code IN_PROCESS_TEAMMATE_ALLOWED} tools.</li>
- *   <li>Layer 5: Per-spec {@code disallowedTools} exclusion.</li>
- *   <li>Layer 6: Per-spec {@code tools} whitelist intersection
- *       (skipped if null/empty or contains only "*").</li>
+
+ * <li>第1层：MCP工具（前缀为"mcp__"）始终通过。</li>
+
+ * <li>第 2 层：{@code ALWAYS_DISALLOWED} — 全局阻止的工具
+
+ * （任务输出、退出计划模式、进入计划模式、代理、询问用户问题、
+
+ * 任务停止、工作流).</li>
+
+ * <li>第3层：如果代理是自定义代理，也阻止
+
+ * {@code CUSTOM_AGENT_DISALLOWED}.</li>
+
+ * <li>第4层：异步模式下，仅允许{@code ASYNC_ALLOWED}工具。
+
+ * 但是，如果代理是进程中的队友，也允许 "Agent"
+
+ * 和 {@code IN_PROCESS_TEAMMATE_ALLOWED} 工具。</li>
+
+ * <li>第 5 层：按规范 {@code disallowedTools} 排除。</li>
+
+ * <li>第 6 层：按规范 {@code tools} 白名单交集
+
+ * （如果为 null/空或仅包含 "*"，则跳过）。</li>
+
  * </ul>
+
  */
 public final class ToolFilter {
 
-    /** Tools that are never available to any sub-agent. */
+    /**
+
+     * 任何子代理都无法使用的工具。
+
+     */
     private static final Set<String> ALWAYS_DISALLOWED = Set.of(
             "TaskOutput", "ExitPlanMode", "EnterPlanMode",
             "Agent", "AskUserQuestion", "TaskStop", "Workflow"
     );
 
-    /** Additional tools blocked for custom agents (same set as ALWAYS_DISALLOWED in Go). */
+    /**
+
+     * 阻止自定义代理使用的其他工具（与 Go 中的 ALWAYS_DISALLOWED 相同）。
+
+     */
     private static final Set<String> CUSTOM_AGENT_DISALLOWED = Set.of(
             "TaskOutput", "ExitPlanMode", "EnterPlanMode",
             "Agent", "AskUserQuestion", "TaskStop", "Workflow"
     );
 
-    /** Tools permitted for async (background) sub-agents. */
+    /**
+
+     * 允许用于异步（后台）子代理的工具。
+
+     */
     private static final Set<String> ASYNC_ALLOWED = Set.of(
             "ReadFile", "WebSearch", "TodoWrite", "Grep", "WebFetch", "Glob",
             "Bash", "EditFile", "WriteFile", "NotebookEdit", "Skill", "LoadSkill",
             "SyntheticOutput", "ToolSearch", "EnterWorktree", "ExitWorktree"
     );
 
-    /** Extra tools allowed when the agent is an in-process teammate. */
+    /**
+
+     * 当代理是进程中的队友时，允许使用额外的工具。
+
+     */
     private static final Set<String> IN_PROCESS_TEAMMATE_ALLOWED = Set.of(
             "TaskCreate", "TaskGet", "TaskList", "TaskUpdate", "SendMessage",
             "CronCreate", "CronDelete", "CronList"
@@ -55,25 +88,40 @@ public final class ToolFilter {
     private ToolFilter() {}
 
     /**
-     * Convenience overload that delegates to the full method with
-     * {@code isAsync=false}, {@code isCustom=false}, {@code isInProcessTeammate=false}.
+
+     * 方便的重载，委托给完整的方法
+
+     * {@code isAsync=false}、{@code isCustom=false}、{@code isInProcessTeammate=false}。
+
      */
     public static ToolRegistry filterForAgent(ToolRegistry source, SubAgentSpec spec) {
         return filterForAgent(source, spec, false, false, false);
     }
 
     /**
-     * Creates a new {@link ToolRegistry} containing only the tools that
-     * the given sub-agent spec is allowed to use, matching the Go reference
-     * implementation's {@code FilterToolsForAgentEx}.
+
+     * 创建一个新的 {@link ToolRegistry}，仅包含以下工具
+
+     * 允许使用给定的子代理规范，与 Go 参考相匹配
+
+     * 实现的{@code FilterToolsForAgentEx}。
+
      *
-     * @param source              the parent registry to filter from
-     * @param spec                the sub-agent specification whose disallowed/allowed tools to honour
-     * @param isAsync             if {@code true}, restrict to the async allow-list
-     * @param isCustom            if {@code true}, also block {@code CUSTOM_AGENT_DISALLOWED} tools
-     * @param isInProcessTeammate if {@code true} (and async), additionally allow "Agent"
-     *                            and {@code IN_PROCESS_TEAMMATE_ALLOWED} tools
-     * @return a new filtered registry
+
+     * @param source              要过滤的父注册表
+
+     * @param spec                子代理规范，其不允许/允许的工具遵守
+
+     * @param isAsync             如果 {@code true}，限制到异步允许列表
+
+     * @param isCustom            如果{@code true}，也块{@code CUSTOM_AGENT_DISALLOWED}工具
+
+     * @param isInProcessTeammate if {@code true}（和异步），另外允许 "Agent"
+
+     * 和 {@code IN_PROCESS_TEAMMATE_ALLOWED} 工具
+
+     * @return a 新过滤注册表
+
      */
     public static ToolRegistry filterForAgent(ToolRegistry source, SubAgentSpec spec,
                                               boolean isAsync, boolean isCustom,
@@ -88,42 +136,42 @@ public final class ToolFilter {
         for (Tool tool : source.listTools()) {
             String name = tool.name();
 
-            // Layer 1: MCP tools always pass through
+            // 第 1 层：MCP 工具始终通过
             if (isMcpTool(name)) {
                 filtered.register(tool);
                 continue;
             }
 
-            // Layer 2: Globally blocked tools
+            // 第 2 层：全局阻止的工具
             if (ALWAYS_DISALLOWED.contains(name)) {
                 continue;
             }
 
-            // Layer 3: Custom-agent specific blocks
+            // 第 3 层：自定义代理特定块
             if (isCustom && CUSTOM_AGENT_DISALLOWED.contains(name)) {
                 continue;
             }
 
-            // Layer 4: In async mode, only permit the allow-listed tools
+            // 第 4 层：在异步模式下，仅允许允许列出的工具
             if (isAsync) {
                 boolean asyncAllowed = ASYNC_ALLOWED.contains(name);
                 if (!asyncAllowed) {
-                    // In-process teammates get extra tools even in async mode
+                    // 即使在异步模式下，进程内的队友也可以获得额外的工具
                     if (isInProcessTeammate
                             && ("Agent".equals(name) || IN_PROCESS_TEAMMATE_ALLOWED.contains(name))) {
-                        // fall through — permitted
+                        // 跌倒——允许
                     } else {
                         continue;
                     }
                 }
             }
 
-            // Layer 5: Per-spec disallowed tools
+            // 第 5 层：按规范不允许的工具
             if (disallowed.contains(name)) {
                 continue;
             }
 
-            // Layer 6: Per-spec whitelist intersection
+            // 第 6 层：按规范白名单交集
             if (hasWhitelist && !allowed.contains(name)) {
                 continue;
             }

@@ -8,8 +8,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Central registry for all slash commands.
- * Ported from Go: internal/commands/commands.go (Registry + CreateDefaultRegistry).
+
+ * 所有斜杠命令的中央注册表。
+
+ * 从 Go 移植：internal/commands/commands.go（注册表 + CreateDefaultRegistry）。
+
  */
 public class CommandRegistry {
 
@@ -19,7 +22,11 @@ public class CommandRegistry {
     private final Map<String, String> nameIndex = new HashMap<>();   // name → ownerName
     private final Map<String, String> aliasIndex = new HashMap<>();  // alias → ownerName
 
-    /** Creates a registry pre-populated with the default MewCode commands. */
+    /**
+
+     * 创建一个预先填充默认 MewCode 命令的注册表。
+
+     */
     public CommandRegistry() {
         registerDefaults();
     }
@@ -94,8 +101,11 @@ public class CommandRegistry {
     }
 
     /**
-     * Returns all non-hidden commands whose name starts with {@code prefix}
-     * (case-insensitive comparison).
+
+     * 返回名称以 {@code prefix} 开头的所有非隐藏命令
+
+     * （不区分大小写的比较）。
+
      */
     public List<Command> search(String prefix) {
         String lower = prefix.toLowerCase(Locale.ROOT);
@@ -116,7 +126,11 @@ public class CommandRegistry {
                 .collect(Collectors.toList());
     }
 
-    /** Finds a command by exact name or alias match. */
+    /**
+
+     * 通过精确名称或别名匹配查找命令。
+
+     */
     public Optional<Command> find(String name) {
         return commands.stream()
                 .filter(c -> c.matches(name))
@@ -124,11 +138,17 @@ public class CommandRegistry {
     }
 
     /**
-     * Executes a LOCAL command handler and returns its output.
+
+     * 执行 LOCAL 命令处理程序并返回其输出。
+
      *
-     * @param name command name or alias
-     * @param args arguments passed after the command name
-     * @return handler output, or an error message if not found / no handler
+
+     * @param name 命令名称或别名
+
+     * @param args  命令名后传递的参数
+
+     * @return handler  输出，或者如果未找到/没有处理程序则显示错误消息
+
      */
     public String execute(String name, CommandContext ctx) {
         Function<CommandContext, String> handler = handlers.get(name);
@@ -146,12 +166,20 @@ public class CommandRegistry {
         return "No handler registered for /" + name;
     }
 
-    /** Returns an unmodifiable view of all registered commands. */
+    /**
+
+     * 返回所有已注册命令的不可修改视图。
+
+     */
     public List<Command> listAll() {
         return Collections.unmodifiableList(commands);
     }
 
-    /** Returns all non-hidden commands, sorted by name. */
+    /**
+
+     * 返回所有非隐藏命令，按名称排序。
+
+     */
     public List<Command> listVisible() {
         return commands.stream()
                 .filter(c -> !c.hidden())
@@ -160,11 +188,13 @@ public class CommandRegistry {
     }
 
     // ------------------------------------------------------------------
-    // Default command registration
+
+    // 默认命令注册
+
     // ------------------------------------------------------------------
 
     private void registerDefaults() {
-        // /help (LOCAL, aliases: h, ?)
+        // /help（LOCAL，别名：h，？）
         register(
                 new Command("help", "Show available commands",
                         new String[]{"h", "?"}, CommandType.LOCAL, false),
@@ -209,21 +239,21 @@ public class CommandRegistry {
                 }
         );
 
-        // /clear (LOCAL_UI)
+        // /清除(LOCAL_UI)
         register(
                 new Command("clear", "Clear conversation and start fresh",
                         new String[]{}, CommandType.LOCAL_UI, false),
                 null
         );
 
-        // /compact (LOCAL_UI, alias: c)
+        // /compact（LOCAL_UI，别名：c）
         register(
                 new Command("compact", "Compress conversation context",
                         new String[]{"c"}, CommandType.LOCAL_UI, false),
                 null
         );
 
-        // /status (LOCAL, alias: s)
+        // /status（LOCAL，别名：s）
         register(
                 new Command("status", "Show current status",
                         new String[]{"s"}, CommandType.LOCAL, false),
@@ -243,7 +273,7 @@ public class CommandRegistry {
                 }
         );
 
-        // /memory (LOCAL)
+        // /内存（LOCAL）
         register(
                 new Command("memory", "Manage auto-memories",
                         new String[]{}, CommandType.LOCAL, false),
@@ -264,14 +294,14 @@ public class CommandRegistry {
                 }
         );
 
-        // /plan (LOCAL_UI, alias: p)
+        // /plan（LOCAL_UI，别名：p）
         register(
                 new Command("plan", "Switch to plan mode (read-only)",
                         new String[]{"p"}, CommandType.LOCAL_UI, false),
                 null
         );
 
-        // /session (LOCAL)
+        // /会话（LOCAL）
         register(
                 new Command("session", "Session management",
                         new String[]{}, CommandType.LOCAL, false),
@@ -287,7 +317,7 @@ public class CommandRegistry {
                 }
         );
 
-        // /permission (LOCAL, alias: perm)
+        // /permission（LOCAL，别名：perm）
         register(
                 new Command("permission", "Permission management",
                         new String[]{"perm"}, CommandType.LOCAL, false),
@@ -303,21 +333,21 @@ public class CommandRegistry {
                 }
         );
 
-        // /resume (LOCAL_UI, alias: r)
+        // /resume（LOCAL_UI，别名：r）
         register(
                 new Command("resume", "Resume a previous session",
                         new String[]{"r"}, CommandType.LOCAL_UI, false),
                 null
         );
 
-        // /rewind (LOCAL_UI)
+        // /倒回 (LOCAL_UI)
         register(
                 new Command("rewind", "Rewind to a previous checkpoint",
                         new String[]{}, CommandType.LOCAL_UI, false),
                 null
         );
 
-        // /skills (LOCAL)
+        // /技能(LOCAL)
         register(
                 new Command("skills", "List available skills",
                         new String[]{}, CommandType.LOCAL, false),
@@ -330,7 +360,7 @@ public class CommandRegistry {
                 }
         );
 
-        // /review (PROMPT)
+        // /评论（PROMPT）
         register(
                 new Command("review", "Review current code changes",
                         new String[]{}, CommandType.PROMPT, false),

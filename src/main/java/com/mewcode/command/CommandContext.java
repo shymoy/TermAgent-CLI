@@ -8,8 +8,11 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * Runtime context passed to command handlers, providing access to the current
- * application state (permission mode, token counts, model, etc.).
+
+ * 运行时上下文传递给命令处理程序，提供对当前命令的访问
+
+ * 应用程序状态（权限模式、token计数、模型等）。
+
  */
 public record CommandContext(
         String args,

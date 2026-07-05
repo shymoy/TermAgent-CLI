@@ -7,12 +7,9 @@ import com.mewcode.conversation.ConversationManager;
 import java.util.List;
 
 /**
- * Result of {@link ToolResultBudget#apply}: a freshly-built
- * {@link ConversationManager} with replacements applied (the input conv is
- * never mutated — that's the whole point of Design B) plus the list of
- * decisions newly made on this call (subset of {@code state.replacements}
- * additions), which the caller should append to the session transcript so
- * resume can rebuild state.
+ * {@link ToolResultBudget#apply} 的返回结果，包含已应用替换的新
+ * {@link ConversationManager} 和本次调用新产生的决策记录。
+ * 输入会话不会被修改；调用方应将新记录追加到会话日志，
+ * 以便之后恢复 {@code state.replacements} 中的决策。
  */
 public record ApplyResult(ConversationManager apiConv, List<ContentReplacementRecord> newRecords) {}
-

@@ -122,7 +122,7 @@ public class ToolSearchTool implements Tool {
             );
         }
 
-        // Mark found tools as discovered so their schemas appear in subsequent requests
+        // 将找到的工具标记为已发现，以便其架构出现在后续请求中
         for (var s : schemas) {
             Object nameObj = s.get("name");
             if (nameObj instanceof String n) {

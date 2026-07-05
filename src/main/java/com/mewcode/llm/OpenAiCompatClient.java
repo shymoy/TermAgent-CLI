@@ -24,12 +24,19 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * LLM client targeting the OpenAI Chat Completions API ({@code /chat/completions}).
+
+ * LLM 客户端面向 OpenAI 聊天完成 API ({@code /chat/completions})。
+
  * <p>
- * This is the "compat" variant — it speaks the widely-adopted Chat Completions
- * wire format instead of the newer Responses API, making it compatible with any
- * provider that exposes a {@code /chat/completions} endpoint (vLLM, Ollama,
- * Together, Groq, etc.).
+
+ * 这是 "compat" 变体 - 它表示广泛采用的聊天完成
+
+ * 有线格式而不是较新的响应 API，使其与任何
+
+ * 公开 {@code /chat/completions} 端点的提供程序（vLLM、Ollama、
+
+ * 一起，Groq 等）。
+
  */
 public class OpenAiCompatClient implements LlmClient {
 
@@ -116,7 +123,7 @@ public class OpenAiCompatClient implements LlmClient {
             throw new IOException("HTTP " + statusCode + ": " + errBody);
         }
 
-        // Accumulation state for tool-call deltas (keyed by index)
+        // 工具调用增量的累积状态（按索引键控）
         var toolNames = new HashMap<Integer, StringBuilder>();
         var toolArgs = new HashMap<Integer, StringBuilder>();
         var toolIds = new HashMap<Integer, String>();
@@ -135,7 +142,7 @@ public class OpenAiCompatClient implements LlmClient {
                 String data = line.substring(6).trim();
 
                 if ("[DONE]".equals(data)) {
-                    // Flush any in-flight tool calls then emit StreamEnd if not already done
+                    // 刷新任何正在进行的工具调用，然后发出 StreamEnd（如果尚未完成）
                     flushPendingToolCalls(queue, toolNames, toolArgs, toolIds);
                     if (!streamEnded) {
                         queue.put(new StreamEvent.StreamEnd("end_turn", 0, 0));
@@ -149,13 +156,19 @@ public class OpenAiCompatClient implements LlmClient {
     }
 
     // ------------------------------------------------------------------
-    // SSE chunk handling
+
+    // SSE 块处理
+
     // ------------------------------------------------------------------
 
     /**
-     * Process a single SSE data payload.
+
+     * 处理单个 SSE 数据有效负载。
+
      *
-     * @return true if a StreamEnd event was emitted (i.e. finish_reason seen)
+
+     * @return true 如果发出 StreamEnd 事件（i.e.finish_reason 可见）
+
      */
     private boolean handleSseData(String data, BlockingQueue<StreamEvent> queue,
                                    Map<Integer, StringBuilder> toolNames,
@@ -169,7 +182,7 @@ public class OpenAiCompatClient implements LlmClient {
             return false; // skip unparsable chunks
         }
 
-        // ---- error object ----
+        // ---- 错误对象 ----
         if (root.has("error")) {
             var errNode = root.get("error");
             String errMsg = errNode.has("message") ? errNode.get("message").asText() : errNode.toString();
@@ -179,14 +192,14 @@ public class OpenAiCompatClient implements LlmClient {
 
         JsonNode choices = root.path("choices");
         if (!choices.isArray() || choices.isEmpty()) {
-            // Might be a usage-only chunk (stream_options.include_usage)
+            // 可能是仅供使用的块 (stream_options.include_usage)
             return emitUsageIfPresent(root, queue);
         }
 
         JsonNode choice = choices.get(0);
         JsonNode delta = choice.path("delta");
 
-        // ---- text content ----
+        // ----文字内容----
         if (delta.has("content") && !delta.get("content").isNull()) {
             String text = delta.get("content").asText();
             if (!text.isEmpty()) {
@@ -203,12 +216,12 @@ public class OpenAiCompatClient implements LlmClient {
             }
         }
 
-        // ---- tool calls (deltas) ----
+        // ---- 工具调用（增量）----
         if (delta.has("tool_calls") && delta.get("tool_calls").isArray()) {
             for (JsonNode tc : delta.get("tool_calls")) {
                 int idx = tc.path("index").asInt(0);
 
-                // id is present only in the first chunk for a given tool call
+                // id 仅出现在给定工具调用的第一个块中
                 if (tc.has("id") && !tc.get("id").isNull()) {
                     toolIds.put(idx, tc.get("id").asText());
                 }
@@ -216,7 +229,7 @@ public class OpenAiCompatClient implements LlmClient {
                 JsonNode fn = tc.path("function");
                 if (fn.has("name") && !fn.get("name").isNull()) {
                     toolNames.computeIfAbsent(idx, k -> new StringBuilder()).append(fn.get("name").asText());
-                    // Emit start once we know the name
+                    // 一旦我们知道名字就发出开始
                     String name = toolNames.get(idx).toString();
                     String callId = toolIds.getOrDefault(idx, "call_" + idx);
                     queue.put(new StreamEvent.ToolCallStart(callId, name));
@@ -229,7 +242,7 @@ public class OpenAiCompatClient implements LlmClient {
             }
         }
 
-        // ---- finish_reason ----
+        // ---- 完成_原因 ----
         String finishReason = choice.has("finish_reason") && !choice.get("finish_reason").isNull()
                 ? choice.get("finish_reason").asText() : null;
 
@@ -254,7 +267,9 @@ public class OpenAiCompatClient implements LlmClient {
     }
 
     // ------------------------------------------------------------------
-    // Tool-call flush
+
+    // 工具调用刷新
+
     // ------------------------------------------------------------------
 
     private void flushPendingToolCalls(BlockingQueue<StreamEvent> queue,
@@ -288,7 +303,9 @@ public class OpenAiCompatClient implements LlmClient {
     }
 
     // ------------------------------------------------------------------
-    // Usage extraction
+
+    // 用法提取
+
     // ------------------------------------------------------------------
 
     private boolean emitUsageIfPresent(JsonNode root, BlockingQueue<StreamEvent> queue) throws InterruptedException {
@@ -301,9 +318,13 @@ public class OpenAiCompatClient implements LlmClient {
     }
 
     /**
-     * Returns {input, output, cacheRead}. OpenAI-compatible providers have no
-     * cache-creation concept; cacheRead is read from
-     * prompt_tokens_details.cached_tokens when present, else 0.
+
+     * 返回{输入，输出，cacheRead}。 OpenAI 兼容提供商没有
+
+     * 缓存创建概念； cacheRead 读取自
+
+     * prompt_tokens_details.cached_tokens（如果存在），否则为 0。
+
      */
     static int[] extractUsage(JsonNode root) {
         JsonNode usage = root.path("usage");
@@ -311,15 +332,17 @@ public class OpenAiCompatClient implements LlmClient {
         int promptTokens = usage.path("prompt_tokens").asInt(0);
         int output = usage.path("completion_tokens").asInt(0);
         int cacheRead = usage.path("prompt_tokens_details").path("cached_tokens").asInt(0);
-        // OpenAI's prompt_tokens already includes the cached portion; split it out
-        // so the anchor's (input + cacheRead + cacheCreation + output) does not
-        // double-count the cache hit.
+        // OpenAI的prompt_tokens已经包含了缓存的部分；把它分开
+        // 所以锚点的（输入+ cacheRead + cacheCreation +输出）不会
+        // 双重计算缓存命中。
         int input = Math.max(0, promptTokens - cacheRead);
         return new int[]{input, output, cacheRead};
     }
 
     // ------------------------------------------------------------------
-    // Request body building
+
+    // 要求健身
+
     // ------------------------------------------------------------------
 
     String buildRequestBody(List<Message> messages, List<Map<String, Object>> tools)
@@ -329,7 +352,7 @@ public class OpenAiCompatClient implements LlmClient {
         root.put("stream", true);
         root.put("max_tokens", maxOutputTokens);
 
-        // stream_options: ask for usage in stream
+        // Stream_options：询问流中的使用情况
         ObjectNode streamOpts = MAPPER.createObjectNode();
         streamOpts.put("include_usage", true);
         root.set("stream_options", streamOpts);
@@ -362,7 +385,7 @@ public class OpenAiCompatClient implements LlmClient {
     private ArrayNode buildChatMessages(List<Message> messages) {
         ArrayNode arr = MAPPER.createArrayNode();
 
-        // System prompt
+        // 系统提示
         if (systemPrompt != null && !systemPrompt.isEmpty()) {
             ObjectNode sys = MAPPER.createObjectNode();
             sys.put("role", "system");
@@ -462,7 +485,9 @@ public class OpenAiCompatClient implements LlmClient {
     }
 
     // ------------------------------------------------------------------
-    // Error classification
+
+    // 错误分类
+
     // ------------------------------------------------------------------
 
     private LlmException classifyError(Exception e) {

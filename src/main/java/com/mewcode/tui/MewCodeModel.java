@@ -70,7 +70,7 @@ public class MewCodeModel implements Model {
 
     private static final Duration POLL_INTERVAL = Duration.ofMillis(50);
 
-    // ── Provider selection ───────────────────────────────────────────────
+    // ── 供应商选择────────────────────────────────────────────────
     private final List<ProviderConfig> providers;
     private final List<McpServerConfig> mcpServers;
     private final List<HookConfig> hookConfigs;
@@ -86,7 +86,7 @@ public class MewCodeModel implements Model {
     private ToolRegistry registry;
     private PermissionChecker permChecker;
 
-    // ── Chat display ────────────────────────────────────────────────────
+    // ── 聊天显示────────────────────────────────────────────────────
     private final List<ChatMessage> chatMessages;
     private final StringBuilder streamBuf;
     private final StringBuilder inputBuffer;
@@ -99,7 +99,7 @@ public class MewCodeModel implements Model {
     private int committedUpTo;
     private boolean bannerPrinted;
 
-    // ── Streaming infrastructure ─────────────────────────────────────────
+    // ── 流媒体基础设施──────────────────────────────────────────
     private BlockingQueue<AgentEvent> agentQueue;
     private CompletableFuture<PermissionResponse> pendingPermission;
     private boolean permDialog;
@@ -108,7 +108,7 @@ public class MewCodeModel implements Model {
     private int permCursor;
     private Program program;
 
-    // ── Rewind dialog ───────────────────────────────────────────────────
+    // ── 快退对话────────────────────────────────────────────────────
     private boolean rewindDialog;
     private int rewindPhase;       // 0=snapshot list, 1=restore options
     private int rewindCursor;
@@ -123,12 +123,12 @@ public class MewCodeModel implements Model {
             "Never mind"
     };
 
-    // ── AskUser dialog ──────────────────────────────────────────────────
+    // ── 询问用户对话框──────────────────────────────────────────────────
     private final com.mewcode.tui.dialog.AskUserDialog askUserDialogState = new com.mewcode.tui.dialog.AskUserDialog();
     private CompletableFuture<Map<String, String>> askUserFuture;
     private AskUserTool askUserTool;
 
-    // ── Advanced features ─────────────────────────────────────────────
+    // ── 高级功能──────────────────────────────────────────────
     private McpManager mcpManager;
     private SkillCatalog skillCatalog;
     private TaskList taskList;
@@ -142,7 +142,7 @@ public class MewCodeModel implements Model {
     private List<com.mewcode.command.Command> slashMatches = new ArrayList<>();
     private int slashCursor;
 
-    // ── Command history ─────────────────────────────────────────────────
+    // ── 命令历史──────────────────────────────────────────────────
     private final HistoryStore historyStore = new HistoryStore();
     private int historyIndex = -1;
     private String historyDraft = "";
@@ -159,7 +159,7 @@ public class MewCodeModel implements Model {
     private int resumeCursor;
     private String resumeSearch = "";
 
-    // ── Session tracking ────────────────────────────────────────────────
+    // ── 会话追踪────────────────────────────────────────────────
     private String sessionId;
 
     // ── Plan mode ────────────────────────────────────────────────────
@@ -168,15 +168,15 @@ public class MewCodeModel implements Model {
     /** 标记本次会话中是否曾退出过 plan mode，用于再次进入时注入 reentry reminder */
     private boolean hasExitedPlanMode;
 
-    // ── Tool blocks (accumulated during a turn, archived on TurnComplete) ──
+    // ── 工具块（回合中累积，在TurnComplete时存档）──
     private final List<ChatMessage.ToolBlockInfo> toolBlocks = new ArrayList<>();
     private ChatMessage.SubAgentBlockState activeSubAgent;
 
-    // ── Sub-agent infrastructure ────────────────────────────────────────
+    // ── 子代理基础设施────────────────────────────────────────
     private SubAgentTaskManager subAgentTaskManager;
     private AgentTool agentToolRef;
 
-    // ── Team infrastructure ────────────────────────────────────────────
+    // ── 团队基础设施────────────────────────────────────────────
     private final com.mewcode.teams.TeamManager teamManager = new com.mewcode.teams.TeamManager();
     private final ConcurrentLinkedQueue<SubAgentProgress> subAgentProgressQueue = new ConcurrentLinkedQueue<>();
 
@@ -194,7 +194,7 @@ public class MewCodeModel implements Model {
     // ── Ready gate (等待首次 WindowSizeMessage 后再渲染) ──────────────
     private boolean ready;
 
-    // ── Scroll tracking ─────────────────────────────────────────────────
+    // ── 滚动追踪──────────────────────────────────────────────────
     private int scrollOffset;
     private boolean userScrolled;
     private int totalContentLines;
@@ -210,11 +210,11 @@ public class MewCodeModel implements Model {
     private int width;
     private int height;
 
-    // ── Token counters ──────────────────────────────────────────────────
+    // ── token计数器────────────────────────────────────────────────────
     private int totalInput;
     private int totalOutput;
 
-    // ── Custom message for agent events ─────────────────────────────────
+    // ── 代理事件的自定义消息──────────────────────────────────
     public record AgentEventMessage() implements Message {}
     public record MailboxPollMessage() implements Message {}
 
@@ -309,9 +309,11 @@ public class MewCodeModel implements Model {
         }
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Model interface
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 模型接口
+
+    // ──────────────────────────────────────────────────────────────────────
 
     /** 首次启动时请求终端尺寸，收到尺寸前暂不渲染界面。 */
     @Override
@@ -330,7 +332,7 @@ public class MewCodeModel implements Model {
             initializeProvider();
         }
 
-        // ── Window resize ───────────────────────────────────────────────
+        // ── 调整窗口大小────────────────────────────────────────────────
         if (msg instanceof WindowSizeMessage wsm) {
             this.width = wsm.width();
             this.height = wsm.height();
@@ -343,7 +345,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // ── Ctrl+C / QuitMessage: interrupt streaming or quit ──────────
+        // ── Ctrl+C / QuitMessage：中断串流或退出──────────
         if (msg instanceof QuitMessage) {
             if (streaming) {
                 savePartialResponse();
@@ -358,7 +360,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this, QuitMessage::new);
         }
 
-        // ── Mouse events ────────────────────────────────────────────────
+        // ── 鼠标事件────────────────────────────────────────────────
         if (msg instanceof MouseMessage mm) {
             var btn = mm.getButton();
             if (btn == MouseMessage.MouseButton.MouseButtonWheelUp) {
@@ -371,7 +373,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // ── Agent streaming events ──────────────────────────────────────
+        // ── 代理串流事件──────────────────────────────────────
         if (msg instanceof AgentEventMessage) {
             if (streaming) spinnerFrame++;
             return handleAgentEvents();
@@ -408,27 +410,27 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this, pollCmd);
         }
 
-        // ── Permission dialog ────────────────────────────────────────────
+        // ── 权限对话框────────────────────────────────────────────
         if (msg instanceof KeyPressMessage kpm && permDialog) {
             return handlePermDialogKey(kpm);
         }
 
-        // ── Rewind dialog ────────────────────────────────────────────────
+        // ── 快退对话────────────────────────────────────────────────
         if (msg instanceof KeyPressMessage kpm && rewindDialog) {
             return handleRewindKey(kpm);
         }
 
-        // ── Plan approval dialog ────────────────────────────────────────
+        // ── 计划批准对话框────────────────────────────────────────
         if (msg instanceof KeyPressMessage kpm && planApprovalDialog.isActive()) {
             return handlePlanApprovalKey(kpm);
         }
 
-        // ── AskUser dialog ──────────────────────────────────────────────
+        // ── 询问用户对话框──────────────────────────────────────────────
         if (msg instanceof KeyPressMessage kpm && askUserDialogState.isActive()) {
             return handleAskUserDialogKey(kpm);
         }
 
-        // ── Dispatch to state-specific handler ──────────────────────────
+        // ── 调度至特定状态处理程序──────────────────────────
         if (msg instanceof KeyPressMessage kpm) {
             return switch (state) {
                 case PROVIDER_SELECT -> handleProviderSelectKey(kpm);
@@ -451,9 +453,11 @@ public class MewCodeModel implements Model {
         };
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Provider selection
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 供应商选择
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handleProviderSelectKey(KeyPressMessage kpm) {
         String key = kpm.key();
@@ -725,7 +729,7 @@ public class MewCodeModel implements Model {
     private UpdateResult<MewCodeModel> handleChatKey(KeyPressMessage kpm) {
         String key = kpm.key();
 
-        // shift+tab: cycle permission mode
+        // shift+tab：循环权限模式
         if (key.equals("shift+tab") && !streaming && permChecker != null) {
             var current = permChecker.getMode();
             var next = switch (current) {
@@ -735,11 +739,11 @@ public class MewCodeModel implements Model {
                 case BYPASS -> PermissionMode.DEFAULT;
             };
             permChecker.setMode(next);
-            // Status bar already shows the mode — no need for a chat message
+            // 状态栏已显示模式 - 无需聊天消息
             return UpdateResult.from(this);
         }
 
-        // ctrl+o: toggle tool block fold/unfold
+        // ctrl+o：切换工具块折叠/展开
         if (key.equals("ctrl+o")) {
             for (var msg : chatMessages) {
                 if ("tool_group".equals(msg.role) || "tool_collapsed".equals(msg.role)
@@ -750,13 +754,13 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // ctrl+j: insert newline without sending
+        // ctrl+j：插入换行符而不发送
         if (key.equals("ctrl+j")) {
             inputBuffer.append('\n');
             return UpdateResult.from(this);
         }
 
-        // escape during streaming: move agent to background
+        // 流媒体期间逃脱：将代理移动到后台
         if (key.equals("escape") && streaming) {
             chatMessages.add(new ChatMessage("system",
                     "Agent moved to background. You will be notified when it completes."));
@@ -769,7 +773,7 @@ public class MewCodeModel implements Model {
                     : UpdateResult.from(this);
         }
 
-        // pgup/pgdown/home/end: viewport scrolling
+        // pgup/pgdown/home/end：视口滚动
         if (key.equals("pgup")) {
             scrollOffset = Math.min(scrollOffset + Math.max(height - 6, 1), Math.max(totalContentLines - 3, 0));
             userScrolled = true;
@@ -791,7 +795,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // Slash menu open: handle navigation
+        // 斜线菜单打开：手柄导航
         if (slashMenuOpen) {
             return switch (key) {
                 case "up" -> {
@@ -833,7 +837,7 @@ public class MewCodeModel implements Model {
             };
         }
 
-        // @ file menu open: handle navigation
+        // @文件菜单打开：处理导航
         if (atMenuOpen) {
             return switch (key) {
                 case "up" -> { if (atCursor > 0) atCursor--; yield UpdateResult.from(this); }
@@ -866,7 +870,7 @@ public class MewCodeModel implements Model {
             };
         }
 
-        // Enter sends a message or slash command
+        // Enter 发送消息或斜线命令
         if (key.equals("enter")) {
             if (inputBuffer.isEmpty()) return UpdateResult.from(this);
             if (streaming) {
@@ -891,7 +895,7 @@ public class MewCodeModel implements Model {
             return sendUserMessage();
         }
 
-        // History navigation (up/down when not streaming)
+        // 历史导航（不流式传输时向上/向下）
         if (!streaming && (key.equals("up") || key.equals("down"))) {
             var entries = historyStore.getEntries();
             if (!entries.isEmpty()) {
@@ -921,7 +925,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // Backspace (DEL 0x7F on Linux/macOS, BS 0x08 aka ctrl+h on Windows)
+        // 退格键（Linux 上为 DEL 0x7F/macOS，Windows 上为 BS 0x08 又名 ctrl+h）
         if (key.equals("backspace") || key.equals("ctrl+h")) {
             if (!inputBuffer.isEmpty()) {
                 inputBuffer.deleteCharAt(inputBuffer.length() - 1);
@@ -942,7 +946,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // Regular character input — use runes() for Unicode support (Chinese, etc.)
+        // 常规字符输入 — 使用 runes() 来支持 Unicode（中文等）
         char[] runes = kpm.runes();
         if (runes != null && runes.length > 0) {
             for (char ch : runes) {
@@ -955,7 +959,7 @@ public class MewCodeModel implements Model {
             } else if (slashMenuOpen) {
                 updateSlashMenu();
             }
-            // Check for @ trigger
+            // 检查@触发器
             String text = inputBuffer.toString();
             int atIdx = text.lastIndexOf('@');
             if (atIdx >= 0 && !text.substring(atIdx).contains(" ")) {
@@ -964,7 +968,7 @@ public class MewCodeModel implements Model {
             return UpdateResult.from(this);
         }
 
-        // Fallback: single printable key string (ASCII)
+        // 后备：单个可打印密钥字符串 (ASCII)
         if (key.length() == 1 && key.charAt(0) >= 32) {
             inputBuffer.append(key.charAt(0));
             if (key.charAt(0) == '/' && inputBuffer.length() == 1) {
@@ -1465,16 +1469,24 @@ public class MewCodeModel implements Model {
         Thread.startVirtualThread(() -> memoryManager.extract(client, conversation));
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Memory recall prefetch
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 内存调用预取
+
+    // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * Runs the recall selector in a virtual thread and returns a future
-     * that will complete with the rendered system-reminder string (or ""
-     * if nothing was selected / selector timed out). Fires a fresh
-     * side-query LlmClient per call so the selector's SYSTEM prompt is
-     * independent of the main conversation's system prompt.
+
+     * 在虚拟线程中运行召回选择器并返回 future
+
+     * 这将与呈现的系统提醒字符串（或 ""
+
+     * 如果没有选择任何内容/选择器超时）。激发出新鲜感
+
+     * 每次调用都会进行侧查询 LlmClient，因此选择器的 SYSTEM 提示为
+
+     * 独立于主要对话的系统提示。
+
      */
     private CompletableFuture<String> prefetchRelevantMemories(String query) {
         if (memoryManager == null || selectedProvider == null) {
@@ -1506,7 +1518,7 @@ public class MewCodeModel implements Model {
                     query, userDir, projectDir, null, null, selector);
             return MemoryRecall.renderReminder(results);
         }, runnable -> {
-            // Run on a virtual thread with 8s timeout.
+            // 在虚拟线程上运行，超时时间为 8 秒。
             Thread t = Thread.ofVirtual().name("memory-recall-prefetch").start(runnable);
             Thread.ofVirtual().start(() -> {
                 try {
@@ -1519,11 +1531,17 @@ public class MewCodeModel implements Model {
     }
 
     /**
-     * Waits up to 3 seconds for the prefetch future to produce a rendered
-     * reminder, then injects it as a system-reminder on the given
-     * conversation. If the timeout fires first, the prefetch keeps running
-     * but its result is dropped — recall is best-effort and must not stall
-     * the user's main request.
+
+     * 等待最多 3 秒，以便预取 future 生成渲染的结果
+
+     * 提醒，然后将其作为给定的系统提醒注入
+
+     * 谈话。如果首先触发超时，则预取将继续运行
+
+     * 但它的结果被放弃了——召回是尽力而为的，不能拖延
+
+     * 用户的主要请求。
+
      */
     private static void collectPrefetchedRecall(
             ConversationManager conv, CompletableFuture<String> prefetchFuture) {
@@ -1534,13 +1552,15 @@ public class MewCodeModel implements Model {
                 conv.addSystemReminder(reminder);
             }
         } catch (Exception ignored) {
-            // Timeout or error — recall is best-effort, don't block the user.
+            // 超时或错误 - 尽力召回，不要阻止用户。
         }
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Tool block management
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 工具块管理
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private static final Set<String> COLLAPSIBLE_TOOLS = Set.of(
             "ReadFile", "Glob", "Grep", "ToolSearch");
@@ -1782,9 +1802,11 @@ public class MewCodeModel implements Model {
         return sb.toString();
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Sub-agent display
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 子代理显示
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private void handleSubAgentProgress(SubAgentProgress progress) {
         subAgentProgressQueue.add(progress);
@@ -1862,9 +1884,11 @@ public class MewCodeModel implements Model {
         return sb.toString();
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Teammate spinner tree
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 队友旋转树
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private String renderTeammateTree() {
         var progressList = teamManager.getAllTeammateProgress();
@@ -1872,7 +1896,7 @@ public class MewCodeModel implements Model {
 
         var sb = new StringBuilder();
         sb.append("\n");
-        // Leader line
+        // 领导线
         sb.append("  ┌─ ").append(Styles.cyan("team-lead"))
           .append(": ").append(Styles.dim(thinkingVerb + "…"));
         if (totalInput + totalOutput > 0) {
@@ -1880,7 +1904,7 @@ public class MewCodeModel implements Model {
         }
         sb.append("\n");
 
-        // Teammate lines
+        // 队友线
         for (int i = 0; i < progressList.size(); i++) {
             var p = progressList.get(i);
             boolean isLast = (i == progressList.size() - 1);
@@ -1904,9 +1928,11 @@ public class MewCodeModel implements Model {
         return sb.toString();
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Plan approval
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 规划审批
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handlePlanApprovalKey(KeyPressMessage kpm) {
         var result = planApprovalDialog.handleKey(kpm.key());
@@ -1949,9 +1975,11 @@ public class MewCodeModel implements Model {
         return UpdateResult.from(this);
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Task notifications
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 任务通知
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private void drainTaskNotifications() {
         if (subAgentTaskManager == null) return;
@@ -1992,9 +2020,11 @@ public class MewCodeModel implements Model {
         };
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Resume screen
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 恢复屏幕
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handleResumeKey(KeyPressMessage kpm) {
         String key = kpm.key();
@@ -2007,20 +2037,25 @@ public class MewCodeModel implements Model {
                     var session = resumeFiltered.get(resumeCursor);
                     var messages = SessionManager.loadSession(System.getProperty("user.dir"), session.id());
                     sessionId = session.id();
-                    // Keep the Agent's session log pointer in sync so a later
-                    // compaction writes its boundary into this same file (chained
-                    // resume); the fileHistory pointer follows too.
+                    // 保持代理的会话日志指针同步，以便稍后使用
+                    // 压缩将其边界写入同一个文件（链式
+                    // 简历）； fileHistory 指针也随之跟随。
                     if (agent != null) agent.setSessionId(sessionId);
                     fileHistory = new com.mewcode.filehistory.FileHistory(
                             System.getProperty("user.dir"), sessionId);
                     if (agent != null) agent.setFileHistory(fileHistory);
 
-                    // Compaction-aware rebuild: when the session has a
-                    // compact_boundary, the live conversation is the compacted
-                    // state (summary + kept tail + messages appended after the
-                    // boundary); the pre-compaction prefix stays in the file for
-                    // audit but is not replayed. Without a boundary (old sessions)
-                    // everything replays verbatim.
+                    // 压缩感知重建：当会话有
+
+                    // Compact_boundary，实时对话是压缩的
+
+                    // 状态（摘要+保留尾部+消息附加在
+
+                    // 边界）；预压缩前缀保留在文件中
+
+                    // 审核但不重播。无边界（旧会话）
+
+                    // 一切都逐字重播。
                     conversation = SessionManager.rebuildConversation(messages);
                     var scan = SessionManager.findLastCompactBoundary(messages);
                     chatMessages.clear();
@@ -2121,9 +2156,11 @@ public class MewCodeModel implements Model {
         return sb.toString();
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Permission dialog
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 权限对话框
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handlePermDialogKey(KeyPressMessage kpm) {
         String key = kpm.key();
@@ -2151,9 +2188,11 @@ public class MewCodeModel implements Model {
         };
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Rewind dialog
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 倒回对话框
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handleRewindKey(KeyPressMessage kpm) {
         String key = kpm.key();
@@ -2166,7 +2205,7 @@ public class MewCodeModel implements Model {
                 default -> UpdateResult.from(this);
             };
         }
-        // Phase 1: option selection
+        // 第一阶段：选项选择
         return switch (key) {
             case "escape" -> { rewindPhase = 0; yield UpdateResult.from(this); }
             case "up", "k" -> { if (rewindOptionCursor > 0) rewindOptionCursor--; yield UpdateResult.from(this); }
@@ -2210,9 +2249,11 @@ public class MewCodeModel implements Model {
         return UpdateResult.from(this);
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // AskUser dialog
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 询问用户对话框
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private UpdateResult<MewCodeModel> handleAskUserDialogKey(KeyPressMessage kpm) {
         var result = askUserDialogState.handleKey(kpm.key());
@@ -2225,9 +2266,11 @@ public class MewCodeModel implements Model {
         return UpdateResult.from(this);
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    // Chat view rendering
-    // ────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
+
+    // 聊天视图渲染
+
+    // ──────────────────────────────────────────────────────────────────────
 
     private String viewChat() {
         var sb = new StringBuilder();
@@ -2327,7 +2370,7 @@ public class MewCodeModel implements Model {
             }
         }
 
-        // ── Active tool blocks (in progress) ────────────────────────────
+        // ── 活动工具块（进行中）────────────────────────────
         for (var tb : toolBlocks) {
             if ("Agent".equals(tb.toolName()) && activeSubAgent != null) {
                 continue;
@@ -2336,29 +2379,29 @@ public class MewCodeModel implements Model {
             sb.append("\n");
         }
 
-        // ── Active sub-agent (in progress) ──────────────────────────────
+        // ── 活跃子代理（进行中）──────────────────────────────
         if (activeSubAgent != null && !activeSubAgent.done) {
             sb.append(renderSubAgentBlock(activeSubAgent, false));
         }
 
-        // ── Streaming buffer (in-progress text) ─────────────────────────
+        // ── 流媒体缓冲区（正在进行的文本）──────────────────────────
         if (streaming && !streamBuf.isEmpty()) {
             sb.append(Styles.aiMarker.render("● "));
             sb.append(Styles.streamingText.render(streamBuf.toString()));
             sb.append("\n");
         }
 
-        // ── Persistent spinner (runs until LoopComplete) ─────────────────
+        // ── 持久旋转器（运行直到 LoopComplete） ──────────────────
         if (streaming) {
             double elapsed = (System.currentTimeMillis() - thinkingStartMs) / 1000.0;
             String frame = SPINNER_FRAMES[spinnerFrame % SPINNER_FRAMES.length];
             sb.append(Styles.thinking.render("  %s %s…  (%.0fs)".formatted(frame, thinkingVerb, elapsed)));
             sb.append("\n");
-            // ── Teammate spinner tree (shown below lead spinner) ──────
+            // ── 队友旋转树（如下所示） ──────
             sb.append(renderTeammateTree());
         }
 
-        // ── Permission dialog overlay ────────────────────────────────────
+        // ── 权限对话框叠加────────────────────────────────────
         if (permDialog) {
             sb.append(Styles.permBorder.render("  %s command".formatted(permToolName)));
             sb.append("\n\n");
@@ -2380,7 +2423,7 @@ public class MewCodeModel implements Model {
             sb.append("\n");
         }
 
-        // ── Rewind dialog overlay ────────────────────────────────────────
+        // ── 快退对话框覆盖────────────────────────────────────────
         if (rewindDialog && rewindSnapshots != null) {
             sb.append("\n");
             sb.append(Styles.selectedItem.render("  ⟲ Rewind to checkpoint"));
@@ -2423,19 +2466,19 @@ public class MewCodeModel implements Model {
             sb.append("\n");
         }
 
-        // ── AskUser dialog overlay ───────────────────────────────────────
+        // ── AskUser对话框覆盖────────────────────────────────────────
         if (askUserDialogState.isActive()) {
             sb.append("\n");
             sb.append(askUserDialogState.render(width));
         }
 
-        // ── Plan approval dialog overlay ─────────────────────────────────
+        // ── 计划批准对话框叠加──────────────────────────────────
         if (planApprovalDialog.isActive()) {
             sb.append("\n");
             sb.append(planApprovalDialog.render());
         }
 
-        // ── Apply line-level viewport ───────────────────────────────────
+        // ── 应用线级视口────────────────────────────────────
         {
             String contentStr = sb.toString();
             sb.setLength(0);
@@ -2473,7 +2516,7 @@ public class MewCodeModel implements Model {
 
         // ── Input area ──────────────────────────────────────────────────
         if (streaming) {
-            // Input disabled during streaming; spinner is in chat content above
+            // 流媒体期间禁用输入；微调器位于上面的聊天内容中
         } else {
             if (inputBuffer.isEmpty()) {
                 sb.append(Styles.prompt.render("❯ "));
@@ -2499,7 +2542,7 @@ public class MewCodeModel implements Model {
         sb.append(Styles.separator.render("─".repeat(Math.max(width, 20))));
         sb.append("\n");
 
-        // ── Slash menu (below separator, above status bar) ──────────────
+        // ── 斜线菜单（分隔符下方，状态栏上方）──────────────
         if (slashMenuOpen && !slashMatches.isEmpty()) {
             for (int i = 0; i < slashMatches.size() && i < 8; i++) {
                 var cmdItem = slashMatches.get(i);
@@ -2549,7 +2592,7 @@ public class MewCodeModel implements Model {
             left += Styles.toolDetail.render(" (shift+tab)");
         }
 
-        // Active teammates indicator
+        // 活跃队友指标
         long activeTeammates = teamManager.getAllTeammateProgress().stream()
                 .filter(p -> "running".equals(p.getStatus()))
                 .count();

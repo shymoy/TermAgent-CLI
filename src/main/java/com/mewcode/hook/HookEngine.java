@@ -34,7 +34,7 @@ public class HookEngine {
     /** HTTP 请求的默认超时（10 秒） */
     private static final Duration DEFAULT_HTTP_TIMEOUT = Duration.ofSeconds(10);
 
-    // ======== Event names ========
+    // ======== 事件名称 ========
 
     public enum EventName {
         SESSION_START("session_start"),
@@ -63,7 +63,7 @@ public class HookEngine {
         }
     }
 
-    // ======== Action types ========
+    // ======== 动作类型 ========
 
     public enum ActionType {
         COMMAND("command"),
@@ -87,7 +87,7 @@ public class HookEngine {
         }
     }
 
-    // ======== Data records ========
+    // ======== 数据记录========
 
     /**
      * 动作定义 —— 与 Go 版 Action 结构体对齐。
@@ -173,7 +173,7 @@ public class HookEngine {
 
     public record PreToolResult(boolean rejected, String message) {}
 
-    // ======== Engine state ========
+    // ======== 发动机状态 ========
 
     private final List<Hook> hooks = new ArrayList<>();
     private final List<HookResult> notifications = Collections.synchronizedList(new ArrayList<>());
@@ -186,13 +186,13 @@ public class HookEngine {
      */
     private BiFunction<String, HookContext, String> agentRunner;
 
-    // ======== Agent runner ========
+    // ======== 特工跑者 ========
 
     public void setAgentRunner(BiFunction<String, HookContext, String> runner) {
         this.agentRunner = runner;
     }
 
-    // ======== Hook registration ========
+    // ======== 钩子注册 ========
 
     public void addHook(Hook hook) {
         synchronized (hooks) {
@@ -208,7 +208,7 @@ public class HookEngine {
         }
     }
 
-    // ======== Config validation ========
+    // ======== 配置验证 ========
 
     /**
      * 校验 hook 配置列表，提前暴露配置错误。
@@ -297,7 +297,7 @@ public class HookEngine {
         return errors;
     }
 
-    // ======== Hook execution ========
+    // ======== 钩子执行 ========
 
     /**
      * 按事件名匹配并执行所有 hook。
@@ -353,7 +353,7 @@ public class HookEngine {
         return new PreToolResult(false, "");
     }
 
-    // ======== Notifications ========
+    // ======== 通知 ========
 
     /** 取出并清空累积的通知（线程安全） */
     public List<HookResult> drainNotifications() {
@@ -390,7 +390,7 @@ public class HookEngine {
         }
     }
 
-    // ======== Condition evaluation ========
+    // ======== 条件评估 ========
 
     /**
      * 条件求值器 —— 支持：
@@ -425,11 +425,11 @@ public class HookEngine {
         return evaluateLeaf(cond, ctx);
     }
 
-    /** 复合条件拆分的令牌 */
+    /** 复合条件拆分的token */
     private record CompToken(String op, String expr) {}
 
     /**
-     * 将条件字符串按顶层 && 和 || 拆分为令牌列表。
+     * 将条件字符串按顶层 && 和 || 拆分为token列表。
      * 不处理引号内的操作符（hook 条件是用户配置，保持简单）。
      * 返回 null 表示没有拆分（纯叶子条件）。
      */
@@ -539,7 +539,7 @@ public class HookEngine {
         return s;
     }
 
-    // ======== Action execution ========
+    // ========动作执行========
 
     /** 根据 action type 分发执行 */
     private HookResult executeAction(Hook h, HookContext ctx) {

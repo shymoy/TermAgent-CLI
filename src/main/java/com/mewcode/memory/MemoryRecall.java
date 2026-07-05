@@ -10,10 +10,15 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Query-time memory recall: scans both user- and project-level memory
- * directories, asks a selector LLM to pick up to 5 relevant filenames,
- * and returns the corresponding paths + mtimes so the caller can read
- * full contents and inject them as a system-reminder.
+
+ * 查询时内存调用：扫描用户级和项目级内存
+
+ * 目录，要求选择器 LLM 选取最多 5 个相关文件名，
+
+ * 并返回相应的路径+ mtimes，以便调用者可以读取
+
+ * 完整内容并将其作为系统提醒注入。
+
  */
 public final class MemoryRecall {
 
@@ -21,7 +26,7 @@ public final class MemoryRecall {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // ── Selector system prompt ─────────────────────────────────────────
+    // ── 选择器系统提示──────────────────────────────────────────
 
     public static final String SELECTOR_SYSTEM_PROMPT = """
             You are selecting memories that will be useful to MewCode as it processes a user's query. \
@@ -41,42 +46,63 @@ public final class MemoryRecall {
             Respond with valid JSON only, no markdown, in this exact shape: \
             {"selected_memories": ["filename1.md", "filename2.md"]}""";
 
-    // ── Result record ──────────────────────────────────────────────────
+    // ── 结果记录──────────────────────────────────────────────────
 
     /**
-     * One memory file selected for surfacing into the main conversation.
-     * {@code mtimeMs} is threaded through so callers can render freshness
-     * without a second stat.
+
+     * 选择一个记忆文件来显示到主要对话中。
+
+     * {@code mtimeMs} 是线程化的，因此调用者可以呈现新鲜感
+
+     * 没有第二个统计数据。
+
      */
     public record RelevantMemory(String path, long mtimeMs) {}
 
-    // ── Selector function interface ────────────────────────────────────
+    // ── 选择器功能界面────────────────────────────────────
 
     /**
-     * Abstraction for the side-query LLM call used by the recall selector.
-     * Given a system prompt and a user message, the caller stands up a
-     * dedicated side-query client and returns the raw assistant text.
-     * Errors are treated as "selector failed -> no recall".
+
+     * 召回选择器使用的辅助查询 LLM 调用的抽象。
+
+     * 给定系统提示和用户消息，呼叫者起立
+
+     * 专用的侧面查询客户端并返回原始助手文本。
+
+     * 错误被视为 "selector failed -> no recall"。
+
      */
     @FunctionalInterface
     public interface SelectorFn {
         String select(String systemPrompt, String userMessage) throws Exception;
     }
 
-    // ── Main entry point ───────────────────────────────────────────────
+    // ── 主要入口────────────────────────────────────────────────
 
     /**
-     * Scans both directories, filters already-surfaced paths, asks the
-     * selector to pick up to 5 relevant filenames, and returns the
-     * corresponding absolute paths + mtimes.
+
+     * 扫描两个目录，过滤已经出现的路径，询问
+
+     * 选择器选取最多 5 个相关文件名，并返回
+
+     * 对应的绝对路径+m次。
+
      *
-     * @param query            the user's query text
-     * @param userMemDir       user-level memory dir (may be null)
-     * @param projectMemDir    project-level memory dir (may be null)
-     * @param recentTools      recently-used tool names (may be null)
-     * @param alreadySurfaced  paths shown in prior turns (may be null)
-     * @param selector         the side-query function
-     * @return selected memories; empty list on any failure
+
+     * @param query            用户的查询文本
+
+     * @param userMemDir       用户级内存目录（可以为空）
+
+     * @param projectMemDir    项目级内存目录（可能为空）
+
+     * @param recentTools      最近使用的工具名称（可以为空）
+
+     * 先前回合中显示的 @param alreadySurfaced   路径（可能为空）
+
+     * @param selector         侧查询功能
+
+     * @return selected 记忆；任何失败时的空列表
+
      */
     public static List<RelevantMemory> findRelevantMemories(
             String query,
@@ -96,7 +122,7 @@ public final class MemoryRecall {
             all.addAll(MemoryScanner.scanMemoryFiles(projectMemDir, "project"));
         }
 
-        // Filter already-surfaced memories.
+        // 过滤已经浮现的记忆。
         Set<String> surfaced = alreadySurfaced != null ? alreadySurfaced : Set.of();
         List<MemoryScanner.MemoryHeader> candidates = new ArrayList<>();
         for (var m : all) {
@@ -109,7 +135,7 @@ public final class MemoryRecall {
         List<String> selectedFilenames = selectRelevantMemories(
                 query, candidates, recentTools, selector);
 
-        // Build a lookup from both filePath and filename to header.
+        // 构建从 filePath 和文件名到标头的查找。
         Map<String, MemoryScanner.MemoryHeader> byKey = new HashMap<>();
         for (var m : candidates) {
             byKey.put(m.filePath(), m);
@@ -126,7 +152,7 @@ public final class MemoryRecall {
         return result;
     }
 
-    // ── Selector logic ─────────────────────────────────────────────────
+    // ── 选择器逻辑──────────────────────────────────────────────────
 
     private static List<String> selectRelevantMemories(
             String query,
@@ -177,9 +203,13 @@ public final class MemoryRecall {
     }
 
     /**
-     * Returns the first {@code {...}} substring found in raw, or the raw
-     * text trimmed if it already starts with '{'. Tolerates markdown
-     * fences or prose around the JSON despite the prompt.
+
+     * 返回在 raw 中找到的第一个 {@code {...}} 子字符串，或者 raw
+
+     * 如果文本已经以“{”开头，则文本被修剪。容忍降价
+
+     * 尽管有提示，但仍围绕 JSON 进行栅栏或散文。
+
      */
     static String extractJsonObject(String raw) {
         if (raw == null) return "";
@@ -192,14 +222,20 @@ public final class MemoryRecall {
         return trimmed.substring(start, end + 1);
     }
 
-    // ── Reminder rendering ─────────────────────────────────────────────
+    // ── 提醒渲染──────────────────────────────────────────────
 
     /**
-     * Reads each selected memory file's full content and formats a single
-     * system-reminder body with freshness headers.
+
+     * 读取每个选定记忆文件的完整内容并格式化单个文件
+
+     * 带有新鲜度标题的系统提醒正文。
+
      *
-     * @param memories the selected memories from {@link #findRelevantMemories}
-     * @return rendered reminder text, or "" if none
+
+     * @param memories 从{@link #findRelevantMemories}中选择的存储器
+
+     * @return rendered  提醒文本，如果没有，则为 ""
+
      */
     public static String renderReminder(List<RelevantMemory> memories) {
         if (memories == null || memories.isEmpty()) return "";

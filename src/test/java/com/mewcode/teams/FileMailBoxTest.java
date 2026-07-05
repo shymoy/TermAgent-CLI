@@ -64,9 +64,9 @@ class FileMailBoxTest {
     @Test
     void teamSendMessageIntegration() {
         var team = new TeamManager.Team("test-team", TeamManager.TeamMode.IN_PROCESS);
-        // Override mailbox for test
+        // 覆盖邮箱进行测试
         var testMb = new FileMailBox(tempDir.resolve("inboxes"));
-        // Use reflection-free approach: just test FileMailBox directly with same flow
+        // 使用无反射方法：只需使用相同的流程直接测试 FileMailBox
         testMb.send("worker", new FileMailBox.MailMessage("leader", "do task X"));
 
         List<FileMailBox.MailMessage> unread = testMb.readUnread("worker");

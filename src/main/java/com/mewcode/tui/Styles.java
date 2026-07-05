@@ -5,14 +5,17 @@ import com.mewcode.tui.tea.Style;
 import com.mewcode.tui.tea.ANSI256Color;
 
 /**
- * Terminal styles using TUI4J's lipgloss port.
- * Color palette matches the Go MewCode TUI.
+
+ * 终端款式采用TUI4J的唇彩端口。
+
+ * 调色板与 Go MewCode TUI 匹配。
+
  */
 public final class Styles {
 
     private Styles() {}
 
-    // ── Color constants (ANSI 256) ──────────────────────────────────────
+    // ── 颜色常数（ANSI 256） ──────────────────────────────────────
     private static final ANSI256Color BRAND_PURPLE = new ANSI256Color(99);
 
     private static final ANSI256Color DIM_TEXT     = new ANSI256Color(242);
@@ -25,7 +28,7 @@ public final class Styles {
     private static final ANSI256Color CYAN_TEXT    = new ANSI256Color(80);
     private static final ANSI256Color SEPARATOR_COLOR = new ANSI256Color(236);
 
-    // ── Banner / chrome ─────────────────────────────────────────────────
+    // ── 横幅/镀铬──────────────────────────────────────────────────
     public static final Style banner = Style.newStyle()
             .foreground(BRAND_PURPLE)
             .bold(true);
@@ -36,7 +39,7 @@ public final class Styles {
     public static final Style separator = Style.newStyle()
             .foreground(SEPARATOR_COLOR);
 
-    // ── Prompt / input ──────────────────────────────────────────────────
+    // ── 提示/输入──────────────────────────────────────────────────
     public static final Style prompt = Style.newStyle()
             .foreground(CYAN_TEXT)
             .bold(true);
@@ -52,7 +55,7 @@ public final class Styles {
     public static final Style streamingText = Style.newStyle()
             .foreground(NORMAL_TEXT);
 
-    // ── Tool status ─────────────────────────────────────────────────────
+    // ── 工具状态──────────────────────────────────────────────────────
     public static final Style toolRunning = Style.newStyle()
             .foreground(DIM_TEXT);
 
@@ -69,7 +72,7 @@ public final class Styles {
     public static final Style error = Style.newStyle()
             .foreground(RED_TEXT);
 
-    // ── Permission dialog ───────────────────────────────────────────────
+    // ── 权限对话框────────────────────────────────────────────────
     public static final Style permBorder = Style.newStyle()
             .foreground(YELLOW_TEXT)
             .bold(true);
@@ -77,7 +80,7 @@ public final class Styles {
     public static final Style permDim = Style.newStyle()
             .foreground(DIM_TEXT);
 
-    // ── System messages ────────────────────────────────────────────────
+    // ── 系统讯息────────────────────────────────────────────────
     public static final Style system = Style.newStyle()
             .foreground(DIM_TEXT);
 
@@ -88,7 +91,7 @@ public final class Styles {
     public static final Style statusItem = Style.newStyle()
             .foreground(MUTED_TEXT);
 
-    // ── Permission mode indicators ──────────────────────────────────────
+    // ── 权限模式指示 ──────────────────────────────────────
     public static final Style modeDefault = Style.newStyle()
             .foreground(DIM_TEXT);
 
@@ -102,7 +105,7 @@ public final class Styles {
             .foreground(RED_TEXT)
             .bold(true);
 
-    // ── Provider selection ──────────────────────────────────────────────
+    // ── 供应商选择──────────────────────────────────────────────
     public static final Style selectLabel = Style.newStyle()
             .foreground(BRAND_PURPLE)
             .bold(true);
@@ -114,21 +117,21 @@ public final class Styles {
     public static final Style normalItem = Style.newStyle()
             .foreground(MUTED_TEXT);
 
-    // ── User input text ────────────────────────────────────────────
+    // ── 用户输入文字────────────────────────────────────────────
     public static final Style userText = Style.newStyle()
             .foreground(BRIGHT_TEXT)
             .bold(true);
 
-    // ── Thinking indicator ─────────────────────────────────────────
+    // ── 思维指标──────────────────────────────────────────
     public static final Style thinking = Style.newStyle()
             .foreground(BRAND_PURPLE);
 
-    // ── Input placeholder ──────────────────────────────────────────
+    // ── 输入占位符──────────────────────────────────────────
     private static final ANSI256Color PLACEHOLDER_COLOR = new ANSI256Color(240);
     public static final Style placeholder = Style.newStyle()
             .foreground(PLACEHOLDER_COLOR);
 
-    // ── Inline color helpers (for team spinner tree and other inline use) ──
+    // ── 内联颜色助手（用于团队微调树和其他内联使用）──
     private static final Style inlineCyan = Style.newStyle().foreground(CYAN_TEXT);
     private static final Style inlineDim = Style.newStyle().foreground(DIM_TEXT);
     private static final Style inlineGreen = Style.newStyle().foreground(GREEN_TEXT);

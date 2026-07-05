@@ -13,21 +13,33 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * TUI dialog for multi-question surveys (the "ask user" tool).
+
+ * 用于多问题调查的 TUI 对话框（"ask user" 工具）。
+
  * <p>
- * Supports single-select, multi-select (checkbox), and free-text "Other" input
- * per question.  For multi-question surveys a tab-style navigation bar lets the
- * user move between questions before reviewing and submitting all answers.
+
+ * 支持单选、多选（复选框）和自由文本 "Other" 输入
+
+ * 每个问题。  对于多问题调查，选项卡式导航栏让
+
+ * 用户在查看和提交所有答案之前在问题之间移动。
+
  * <p>
- * This is a plain-string renderer and key handler -- not a TUI4J component.
- * It is driven by {@code MewCodeModel}, which calls {@link #handleKey(String)}
- * on each key press and {@link #render(int)} each frame.
+
+ * 这是一个纯字符串渲染器和键处理程序——而不是 TUI4J 组件。
+
+ * 由{@code MewCodeModel}驱动，调用{@link #handleKey(String)}
+
+ * 在每个按键和 {@link #render(int)} 每一帧上。
+
  *
+
  * @see com.mewcode.tui.MewCodeModel
+
  */
 public class AskUserDialog {
 
-    // ── Styles (matching Go renderQuestionNavBar / renderQuestionView) ───
+    // ── 样式（匹配Go renderQuestionNavBar / renderQuestionView）──
     private static final ANSI256Color BRAND_PURPLE = new ANSI256Color(99);
     private static final ANSI256Color DIM_TEXT     = new ANSI256Color(242);
     private static final ANSI256Color BRIGHT_TEXT  = new ANSI256Color(255);
@@ -55,53 +67,97 @@ public class AskUserDialog {
     private boolean active;
     private List<Question> questions;
 
-    /** Index of the question currently displayed. */
+    /**
+
+     * 当前显示的问题的索引。
+
+     */
     private int questionIndex;
 
-    /** Per-question cursor position (index into options + "Other"). */
+    /**
+
+     * 每个问题的光标位置（选项索引 + "Other"）。
+
+     */
     private int[] cursors;
 
-    /** Per-question set of selected option indices (for multi-select). */
+    /**
+
+     * 每个问题的选定选项索引集（用于多项选择）。
+
+     */
     private List<Set<Integer>> selected;
 
-    /** Per-question free-text "Other" input. */
+    /**
+
+     * 每个问题的自由文本 "Other" 输入。
+
+     */
     private String[] otherText;
 
-    /** Collected answers keyed by question index. */
+    /**
+
+     * 收集的答案按问题索引键入。
+
+     */
     private Map<Integer, String> answers;
 
-    /** Whether we are on the final Submit / Cancel view. */
+    /**
+
+     * 我们是否处于最终的“提交/取消”视图。
+
+     */
     private boolean onSubmitTab;
 
-    /** 0 = Submit, 1 = Cancel on the submit view. */
+    /**
+
+     * 0 = 提交，1 = 取消提交视图。
+
+     */
     private int submitCursor;
 
-    // ── Data records ────────────────────────────────────────────────────
+    // ── 数据记录────────────────────────────────────────────────────
 
     /**
-     * A single survey question.
+
+     * 一个调查问题。
+
      *
-     * @param text        the question text shown as header
-     * @param header      short label for the tab bar (falls back to "Q{n}")
-     * @param options     the selectable options
-     * @param multiSelect if {@code true}, checkboxes; otherwise radio-style
+
+     * @param text        标题中显示的问题文本
+
+     * @param header       选项卡栏的短标签（回退到 "Q{n}"）
+
+     * @param options     可选选项
+
+     * @param multiSelect if {@code true}，复选框；否则无线电风格
+
      */
     public record Question(String text, String header, List<Option> options, boolean multiSelect) {}
 
     /**
-     * A single selectable option within a question.
+
+     * 问题中的单个可选选项。
+
      *
-     * @param label       display label
-     * @param description short description shown to the right of the label
+
+     * @param label       显示标签
+
+     * @param description  标签右侧显示的简短说明
+
      */
     public record Option(String label, String description) {}
 
     // ── Lifecycle ───────────────────────────────────────────────────────
 
     /**
-     * Show the dialog, resetting all state for a new set of questions.
+
+     * 显示对话框，重置一组新问题的所有状态。
+
      *
-     * @param questions the list of questions to present
+
+     * @param questions 要提出的问题清单
+
      */
     public void activate(List<Question> questions) {
         this.active = true;
@@ -122,20 +178,31 @@ public class AskUserDialog {
         }
     }
 
-    /** @return {@code true} while the dialog is visible */
+    /**
+
+     * @return {@code true} 当对话框可见时
+
+     */
     public boolean isActive() {
         return active;
     }
 
-    // ── Key handling ────────────────────────────────────────────────────
+    // ── 按键处理────────────────────────────────────────────────────
 
     /**
-     * Process a single key press.
+
+     * 处理单个按键。
+
      *
-     * @param key the key string from {@code KeyPressMessage}
-     * @return a map of (question text -> answer string) when the user submits,
-     *         a singleton map {@code {"_declined" -> "true"}} on cancel,
-     *         or {@code null} if the dialog remains open
+
+     * @param key {@code KeyPressMessage} 中的密钥字符串
+
+     * 用户提交时（问题文本 -> 答案字符串）的 @return a map，
+
+     * 取消时的单例映射 {@code {"_declined" -> "true"}}，
+
+     * 或 {@code null}（如果对话框保持打开状态）
+
      */
     public Map<String, String> handleKey(String key) {
         if (questions == null || questions.isEmpty()) {
@@ -149,7 +216,7 @@ public class AskUserDialog {
             return handleSubmitTabKey(key, multiQuestion);
         }
 
-        // ── Question view ───────────────────────────────────────────────
+        // ── 问题视图────────────────────────────────────────────────
         Question q = questions.get(questionIndex);
         int optCount = q.options().size() + 1; // options + "Other"
         int cursor = cursors[questionIndex];
@@ -188,11 +255,11 @@ public class AskUserDialog {
             }
             case "enter" -> {
                 saveCurrentAnswer();
-                // Single question, single-select: submit immediately
+                // 单题单选：立即提交
                 if (!multiQuestion && !q.multiSelect()) {
                     return submitAllAnswers();
                 }
-                // Advance to next question or submit tab
+                // 前进到下一个问题或提交选项卡
                 if (questionIndex < questions.size() - 1) {
                     questionIndex++;
                 } else {
@@ -210,7 +277,7 @@ public class AskUserDialog {
                 return cancelDialog();
             }
             default -> {
-                // Typing into "Other" field
+                // 输入 "Other" 字段
                 if (cursor == q.options().size()) {
                     if (key.length() == 1) {
                         char ch = key.charAt(0);
@@ -225,7 +292,9 @@ public class AskUserDialog {
     }
 
     /**
-     * Handle keys when the submit/cancel tab is active.
+
+     * 当提交/取消选项卡处于活动状态时处理按键。
+
      */
     private Map<String, String> handleSubmitTabKey(String key, boolean multiQuestion) {
         switch (key) {
@@ -254,18 +323,21 @@ public class AskUserDialog {
         return null;
     }
 
-    // ── Answer collection helpers ───────────────────────────────────────
+    // ── 答案收集助手────────────────────────────────────────
 
     /**
-     * Persist the current question's answer into the {@link #answers} map
-     * based on cursor position and selection state.
+
+     * 将当前问题的答案保留到 {@link #answers} 地图中
+
+     * 基于光标位置和选择状态。
+
      */
     private void saveCurrentAnswer() {
         Question q = questions.get(questionIndex);
         int cursor = cursors[questionIndex];
 
         if (cursor == q.options().size()) {
-            // "Other" selected
+            // "Other" 已选择
             String other = otherText[questionIndex];
             answers.put(questionIndex, other.isEmpty() ? "Other" : other);
         } else if (q.multiSelect()) {
@@ -277,7 +349,7 @@ public class AskUserDialog {
                 }
             }
             if (labels.isEmpty()) {
-                // Nothing toggled -- use the option under cursor
+                // 没有切换 - 使用光标下的选项
                 labels.add(q.options().get(cursor).label());
             }
             answers.put(questionIndex, String.join(", ", labels));
@@ -287,7 +359,9 @@ public class AskUserDialog {
     }
 
     /**
-     * Collect all answers into a map keyed by question text and close the dialog.
+
+     * 将所有答案收集到由问题文本键入的地图中，然后关闭对话框。
+
      */
     private Map<String, String> submitAllAnswers() {
         active = false;
@@ -302,7 +376,9 @@ public class AskUserDialog {
     }
 
     /**
-     * Close the dialog with a cancellation marker.
+
+     * 使用取消标记关闭对话框。
+
      */
     private Map<String, String> cancelDialog() {
         active = false;
@@ -312,10 +388,15 @@ public class AskUserDialog {
     // ── Rendering ───────────────────────────────────────────────────────
 
     /**
-     * Render the dialog as a plain ANSI-styled string.
+
+     * 将对话框呈现为纯 ANSI 样式的字符串。
+
      *
-     * @param width the terminal width (used for layout hints)
-     * @return the rendered dialog string
+
+     * @param width 终端宽度（用于布局提示）
+
+     * @return the 渲染的对话框字符串
+
      */
     public String render(int width) {
         if (!active || questions == null || questions.isEmpty()) {
@@ -325,20 +406,20 @@ public class AskUserDialog {
         var sb = new StringBuilder();
         boolean multiQuestion = questions.size() > 1;
 
-        // Navigation bar (multi-question only)
+        // 导航栏（仅限多问题）
         if (multiQuestion) {
             sb.append(renderNavBar());
             sb.append("\n\n");
         }
 
-        // Body: either submit view or question view
+        // 正文：提交视图或问题视图
         if (onSubmitTab) {
             sb.append(renderSubmitView());
         } else {
             sb.append(renderQuestionView());
         }
 
-        // Bottom hint (multi-question, question view only)
+        // 底部提示（多问题，仅限问题视图）
         if (multiQuestion && !onSubmitTab) {
             sb.append(DIM_STYLE.render(
                     "      ← → navigate questions · enter to confirm"));
@@ -348,7 +429,7 @@ public class AskUserDialog {
         return sb.toString();
     }
 
-    // ── Navigation bar ──────────────────────────────────────────────────
+    // ── 导航栏──────────────────────────────────────────────────
 
     private String renderNavBar() {
         var sb = new StringBuilder();
@@ -360,7 +441,7 @@ public class AskUserDialog {
             sb.append(BRIGHT_ARROW.render(" ←"));
         }
 
-        // Question tabs
+        // 问题选项卡
         for (int i = 0; i < questions.size(); i++) {
             String header = questions.get(i).header();
             if (header == null || header.isEmpty()) {
@@ -384,7 +465,7 @@ public class AskUserDialog {
             sb.append(INACTIVE_TAB.render(submitLabel));
         }
 
-        // Right arrow
+        // 右箭头
         if (onSubmitTab) {
             sb.append(DIM_ARROW.render(" →"));
         } else {
@@ -394,7 +475,7 @@ public class AskUserDialog {
         return sb.toString();
     }
 
-    // ── Question view ───────────────────────────────────────────────────
+    // ── 问题视图────────────────────────────────────────────────────
 
     private String renderQuestionView() {
         var sb = new StringBuilder();
@@ -402,7 +483,7 @@ public class AskUserDialog {
         int cursor = cursors[questionIndex];
         int lines = 0;
 
-        // Question header
+        // 问题标题
         sb.append(HEADER_STYLE.render(" " + q.text()));
         sb.append("\n\n");
         lines += 2;
@@ -411,7 +492,7 @@ public class AskUserDialog {
         for (int i = 0; i < q.options().size(); i++) {
             Option opt = q.options().get(i);
 
-            // Cursor prefix
+            // 光标前缀
             String prefix;
             if (i == cursor) {
                 prefix = CURSOR_STYLE.render(" ❯ ");
@@ -419,7 +500,7 @@ public class AskUserDialog {
                 prefix = "   ";
             }
 
-            // Multi-select checkbox
+            // 多选复选框
             if (q.multiSelect()) {
                 String check = selected.get(questionIndex).contains(i) ? "●" : "○";
                 prefix += check + " ";
@@ -433,7 +514,7 @@ public class AskUserDialog {
                 label = opt.label();
             }
 
-            // Description
+            // 描述
             String desc = "";
             if (opt.description() != null && !opt.description().isEmpty()) {
                 desc = DIM_STYLE.render(" — " + opt.description());
@@ -443,7 +524,7 @@ public class AskUserDialog {
             lines++;
         }
 
-        // "Other" option
+        // "Other" 选项
         int otherIdx = q.options().size();
         String otherPrefix;
         if (cursor == otherIdx) {
@@ -464,14 +545,14 @@ public class AskUserDialog {
         sb.append('\n');
         lines++;
 
-        // Multi-select hint
+        // 多选提示
         if (q.multiSelect()) {
             sb.append(DIM_STYLE.render("      space to toggle, enter to confirm"));
             sb.append('\n');
             lines++;
         }
 
-        // Pad to fixed height so switching questions doesn't cause layout shift
+        // 垫到固定高度，因此切换问题不会导致布局变化
         if (questions.size() > 1) {
             int target = maxLines();
             while (lines < target) {
@@ -483,7 +564,7 @@ public class AskUserDialog {
         return sb.toString();
     }
 
-    // ── Submit view ─────────────────────────────────────────────────────
+    // ── 提交查看──────────────────────────────────────────────────────
 
     private String renderSubmitView() {
         var sb = new StringBuilder();
@@ -493,7 +574,7 @@ public class AskUserDialog {
         sb.append("\n\n");
         lines += 2;
 
-        // Answer summary
+        // 答案总结
         for (int i = 0; i < questions.size(); i++) {
             String label = questions.get(i).header();
             if (label == null || label.isEmpty()) {
@@ -511,7 +592,7 @@ public class AskUserDialog {
         sb.append('\n');
         lines++;
 
-        // Submit / Cancel
+        // 提交/取消
         String[] actions = {"Submit answers", "Cancel"};
         for (int i = 0; i < actions.length; i++) {
             if (i == submitCursor) {
@@ -524,7 +605,7 @@ public class AskUserDialog {
             lines++;
         }
 
-        // Pad to match question view height
+        // 垫以匹配问题视图高度
         int target = maxLines();
         while (lines < target) {
             sb.append('\n');
@@ -537,8 +618,11 @@ public class AskUserDialog {
     // ── Helpers ──────────────────────────────────────────────────────────
 
     /**
-     * Compute the maximum rendered line count across all questions,
-     * so that views can be padded to a uniform height.
+
+     * 计算所有问题的最大渲染行数，
+
+     * 以便视图可以填充到统一的高度。
+
      */
     private int maxLines() {
         int max = 0;

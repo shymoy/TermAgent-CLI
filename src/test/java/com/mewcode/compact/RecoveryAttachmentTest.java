@@ -45,7 +45,7 @@ class RecoveryAttachmentTest {
         for (int i = 0; i < 7; i++) {
             state.recordFileRead("/f" + i, "x");
         }
-        // Force deterministic timestamps via reflection so ordering is observable.
+        // 通过反射强制确定性时间戳，以便可以观察到排序。
         Field filesField = RecoveryState.class.getDeclaredField("files");
         filesField.setAccessible(true);
         @SuppressWarnings("unchecked")
@@ -80,7 +80,7 @@ class RecoveryAttachmentTest {
         for (int i = 0; i < 6; i++) {
             state.recordSkillInvocation("skill-" + i, body);
         }
-        // Pin timestamps so newest-first ordering is deterministic.
+        // 固定时间戳，以便最新优先的排序是确定的。
         Field skillsField = RecoveryState.class.getDeclaredField("skills");
         skillsField.setAccessible(true);
         @SuppressWarnings("unchecked")
@@ -92,7 +92,7 @@ class RecoveryAttachmentTest {
         }
 
         String out = ContextCompactor.buildRecoveryAttachment(state, null);
-        // 25K / 5K per skill ⇒ at most 5.
+        // 每个技能 25K / 5K ⇒ 最多 5 个。
         int emitted = 0;
         int idx = 0;
         while ((idx = out.indexOf("### skill-", idx)) >= 0) {

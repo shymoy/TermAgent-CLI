@@ -6,8 +6,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Display-oriented message for the TUI chat view.
- * Roles: user, assistant, system, error, tool, tool_collapsed, tool_group, sub_agent, thinking.
+
+ * TUI 聊天视图的面向显示的消息。
+
+ * 角色：用户、助理、系统、错误、工具、tool_collapsed、tool_group、sub_agent、思考。
+
  */
 public class ChatMessage {
 
@@ -29,7 +32,9 @@ public class ChatMessage {
     }
 
     /**
-     * Information about a single tool invocation for rendering in the TUI.
+
+     * 有关在 TUI 中渲染的单个工具调用的信息。
+
      */
     public record ToolBlockInfo(
             String toolName,
@@ -42,7 +47,9 @@ public class ChatMessage {
     ) {}
 
     /**
-     * Tracks a sub-agent's execution for display in the TUI.
+
+     * 跟踪子代理的执行并显示在 TUI 中。
+
      */
     public static class SubAgentBlockState {
         public String desc;

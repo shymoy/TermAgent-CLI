@@ -143,8 +143,8 @@ public class OpenAiClient implements LlmClient {
                         var usage = resp.usage().get();
                         outputTokens = (int) usage.outputTokens();
                         cacheReadTokens = (int) usage.inputTokensDetails().cachedTokens();
-                        // inputTokens already includes the cached portion; split
-                        // it out so the anchor does not double-count the hit.
+                        // inputTokens 已包含缓存命中部分，需要将其拆出，
+                        // 避免用量锚点重复计数。
                         inputTokens = Math.max(0, (int) usage.inputTokens() - cacheReadTokens);
                     }
                     queue.put(new StreamEvent.StreamEnd(

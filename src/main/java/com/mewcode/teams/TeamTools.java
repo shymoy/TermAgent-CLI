@@ -10,13 +10,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Team coordination tools: SendMessage, TeamCreate, TeamDelete.
+
+ * 团队协调工具：SendMessage、TeamCreate、TeamDelete。
+
  */
 public final class TeamTools {
 
     private TeamTools() {}
 
-    // ── SendMessage ────────────────────────────────────────────────────
+    // ── 发送讯息────────────────────────────────────────────────────
 
     public static class SendMessageTool implements Tool {
         private final TeamManager teamMgr;
@@ -61,7 +63,7 @@ public final class TeamTools {
                 return ToolResult.error("Error: 'to' and 'content' are required");
             }
 
-            // Route to lead by finding any team the sender belongs to.
+            // 通过查找发件人所属的任何团队来引导路由。
             if ("lead".equals(to)) {
                 for (String teamName : teamMgr.listTeams()) {
                     TeamManager.Team team = teamMgr.getTeam(teamName);
@@ -80,8 +82,8 @@ public final class TeamTools {
                     team.sendMessage(senderName, to, content);
                     return ToolResult.success("Message sent to " + to + ".");
                 }
-                // Fallback: sender belongs to this team but recipient not in Members
-                // (tmux mode — each process only knows itself). Write to mailbox directly.
+                // 后备：发件人属于该团队，但收件人不在成员中
+                // （tmux 模式——每个进程只知道自己）。直接写信到邮箱。
                 if (team.hasMember(senderName)) {
                     team.sendMessage(senderName, to, content);
                     return ToolResult.success("Message sent to " + to + ".");
@@ -92,7 +94,7 @@ public final class TeamTools {
         }
     }
 
-    // ── TeamCreate ─────────────────────────────────────────────────────
+    // ── 团队创建──────────────────────────────────────────────────────
 
     public static class TeamCreateTool implements Tool {
 
@@ -179,7 +181,7 @@ public final class TeamTools {
         }
     }
 
-    // ── TeamDelete ─────────────────────────────────────────────────────
+    // ── 团队删除──────────────────────────────────────────────────────
 
     public static class TeamDeleteTool implements Tool {
         private final TeamManager teamMgr;

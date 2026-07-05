@@ -2,14 +2,23 @@
 package com.mewcode.command;
 
 /**
- * A slash command definition.
- * Ported from Go: internal/commands/commands.go (Command struct).
+
+ * 斜杠命令定义。
+
+ * 从 Go 移植：internal/commands/commands.go（命令结构）。
+
  *
- * @param name        canonical name without the leading slash (e.g. "help")
- * @param description one-line description shown in /help output
- * @param aliases     alternative names (e.g. {"h", "?"} for help)
- * @param type        how the command is dispatched
- * @param hidden      if true, omitted from /help listings
+
+ * @param name        不带前导斜杠的规范名称（e.g."help"）
+
+ * /help 输出中显示的 @param description one 行描述
+
+ * @param aliases     替代名称（e.g。{"h"，"?"}寻求帮助）
+
+ * @param type        命令如何调度
+
+ * @param hidden      if true，从/help列表中省略
+
  */
 public record Command(
         String name,
@@ -19,19 +28,32 @@ public record Command(
         boolean hidden
 ) {
 
-    /** Dispatch style for a command. */
+    /**
+
+     * 命令的调度样式。
+
+     */
     public enum CommandType {
-        /** Synchronous handler that returns text output. */
+        /**
+         * 返回文本输出的同步处理程序。
+         */
         LOCAL,
-        /** TUI action (clear screen, mode switch) -- no text output. */
+        /**
+         * TUI 动作（清屏、模式切换）——无文本输出。
+         */
         LOCAL_UI,
-        /** Generates a prompt string sent to the LLM agent. */
+        /**
+         * 生成发送到 LLM 代理的提示字符串。
+         */
         PROMPT
     }
 
     /**
-     * Returns {@code true} when {@code input} matches the canonical name
-     * or any alias (exact, case-sensitive comparison).
+
+     * 当 {@code input} 与规范名称匹配时返回 {@code true}
+
+     * 或任何别名（精确、区分大小写的比较）。
+
      */
     public boolean matches(String input) {
         if (name.equals(input)) {

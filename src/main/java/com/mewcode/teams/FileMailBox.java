@@ -84,7 +84,7 @@ public class FileMailBox {
                 acquired = true;
                 break;
             } catch (FileAlreadyExistsException e) {
-                // Check for stale lock (>10s old)
+                // 检查锁是否陈旧（>10 年前）
                 try {
                     var modTime = Files.getLastModifiedTime(lock).toInstant();
                     if (Instant.now().minusSeconds(10).isAfter(modTime)) {

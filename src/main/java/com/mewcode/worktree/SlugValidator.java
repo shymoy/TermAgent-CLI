@@ -4,7 +4,9 @@ package com.mewcode.worktree;
 import java.util.regex.Pattern;
 
 /**
- * Validates and transforms worktree slugs.
+
+ * 验证并转换工作树段。
+
  */
 public final class SlugValidator {
 

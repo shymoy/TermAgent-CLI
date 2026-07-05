@@ -5,7 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Global singleton maintaining name → agent_id mappings.
+
+ * 全局单例维护名称→agent_id 映射。
+
  */
 public final class AgentNameRegistry {
 

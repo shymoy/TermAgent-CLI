@@ -7,9 +7,13 @@ import com.mewcode.conversation.Message;
 import java.util.List;
 
 /**
- * Extends {@link SkillHost} with the ability to run an isolated sub-agent.
- * Implemented by the TUI layer (which owns the LLM client + agent
- * constructor) and passed into {@link SkillExecutor#executeFork}.
+
+ * 扩展了 {@link SkillHost} 运行独立子代理的能力。
+
+ * 由TUI层实现（拥有LLM客户端+代理
+
+ * 构造函数）并传递到 {@link SkillExecutor#executeFork} 中。
+
  */
 public interface SkillForkHost extends SkillHost {
 

@@ -61,7 +61,7 @@ public class FileHistory {
             Path bp = sessionDir.resolve(backupName(key, newVer));
             Files.write(bp, data);
         } catch (IOException ignored) {
-            // File doesn't exist yet (new file) — no backup, but still track
+            // 文件尚不存在（新文件）- 没有备份，但仍在跟踪
         }
 
         trackedFiles.put(key, newVer);
@@ -75,7 +75,7 @@ public class FileHistory {
             String bpName = backupName(path, ver);
             Path bp = sessionDir.resolve(bpName);
 
-            // If backup file missing (new file created in this turn), backup current state
+            // 如果备份文件丢失（本轮创建新文件），则备份当前状态
             if (!Files.exists(bp)) {
                 try {
                     byte[] data = Files.readAllBytes(Path.of(path));
@@ -126,7 +126,7 @@ public class FileHistory {
                     changed.add(filePath);
                 }
             } catch (IOException e) {
-                // Backup missing → file didn't exist at that point
+                // 备份丢失 → 文件当时不存在
                 try {
                     if (Files.exists(Path.of(filePath))) {
                         Files.delete(Path.of(filePath));
@@ -136,12 +136,12 @@ public class FileHistory {
             }
         }
 
-        // Truncate snapshots after target
+        // 截断目标后的快照
         while (snapshots.size() > snapshotIndex + 1) {
             snapshots.removeLast();
         }
 
-        // Reset tracked versions
+        // 重置跟踪版本
         for (var entry : target.backups().entrySet()) {
             trackedFiles.put(entry.getKey(), entry.getValue().version());
         }

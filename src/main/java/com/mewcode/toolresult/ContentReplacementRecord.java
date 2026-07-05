@@ -2,10 +2,9 @@
 package com.mewcode.toolresult;
 
 /**
- * One transcript line: a single replacement decision made by
- * {@link ToolResultBudget#apply}, suitable for jsonl persistence so
- * {@link ContentReplacementLifecycle#reconstruct} can rebuild state on
- * resume.
+ * 表示 {@link ToolResultBudget#apply} 生成的一条工具结果替换决策。
+ * 记录可持久化为 JSONL，供 {@link ContentReplacementLifecycle#reconstruct}
+ * 在恢复会话时重建状态。
  */
 public record ContentReplacementRecord(String kind, String toolUseId, String replacement) {
 
@@ -15,4 +14,3 @@ public record ContentReplacementRecord(String kind, String toolUseId, String rep
         return new ContentReplacementRecord(KIND_TOOL_RESULT, toolUseId, replacement);
     }
 }
-

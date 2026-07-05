@@ -11,8 +11,11 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
- * Lightweight worktree API for sub-agents. Does NOT touch global session
- * state (WorktreeSessionStore).
+
+ * 用于子代理的轻量级工作树 API。 NOT是否触及全局会话
+
+ * 状态（WorktreeSessionStore）。
+
  */
 public final class AgentWorktree {
 
@@ -23,7 +26,9 @@ public final class AgentWorktree {
     private AgentWorktree() {}
 
     /**
-     * Creates or resumes a worktree for a sub-agent.
+
+     * 为子代理创建或恢复工作树。
+
      */
     public static Result create(String slug, String repoRoot, List<String> symlinkDirs) throws Exception {
         SlugValidator.validate(slug);
@@ -31,9 +36,9 @@ public final class AgentWorktree {
         Path wtPath = Path.of(repoRoot, ".mewcode", "worktrees", SlugValidator.flatten(slug));
         String branch = "worktree-" + SlugValidator.flatten(slug);
 
-        // Fast-resume: check if worktree already exists
+        // 快速恢复：检查工作树是否已存在
         if (Files.isDirectory(wtPath)) {
-            // Bump mtime to prevent stale cleanup
+            // 增加 mtime 以防止过时的清理
             Files.setLastModifiedTime(wtPath, java.nio.file.attribute.FileTime.from(Instant.now()));
             String head = readHead(wtPath.toString());
             return new Result(wtPath.toString(), branch, head != null ? head : "", repoRoot);
@@ -60,7 +65,9 @@ public final class AgentWorktree {
     }
 
     /**
-     * Removes a worktree created by {@link #create}.
+
+     * 删除 {@link #create} 创建的工作树。
+
      */
     public static boolean remove(String worktreePath, String worktreeBranch, String gitRoot) {
         if (gitRoot == null || gitRoot.isBlank()) return false;
@@ -90,7 +97,9 @@ public final class AgentWorktree {
     }
 
     /**
-     * Builds the notice text for sub-agents running in isolated worktrees.
+
+     * 为在隔离工作树中运行的子代理构建通知文本。
+
      */
     public static String buildNotice(String parentCwd, String worktreeCwd) {
         return "You've inherited the conversation context above from a parent agent working in %s. "

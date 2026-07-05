@@ -10,7 +10,9 @@ import com.mewcode.tool.ToolRegistry;
 import java.util.*;
 
 /**
- * Executes skills in inline or fork mode.
+
+ * 以内联或分叉模式执行技能。
+
  */
 public final class SkillExecutor {
 
@@ -19,8 +21,11 @@ public final class SkillExecutor {
     private SkillExecutor() {}
 
     /**
-     * Activates the skill's SOP on the host agent, applies the
-     * allowed_tools whitelist, and returns the rendered prompt body.
+
+     * 在主机代理上激活技能的 SOP，应用
+
+     * allowed_tools 白名单，并返回渲染的提示体。
+
      */
     public static String executeInline(Skill skill, String args, SkillHost host) {
         assertAllowedToolsExist(skill, host.toolRegistry());
@@ -38,8 +43,11 @@ public final class SkillExecutor {
     }
 
     /**
-     * Executes the skill in an isolated sub-agent and returns the
-     * final assistant text.
+
+     * 在孤立的子代理中执行技能并返回
+
+     * 最后的助理文本。
+
      */
     public static String executeFork(Skill skill, String args, SkillForkHost host) {
         assertAllowedToolsExist(skill, host.toolRegistry());

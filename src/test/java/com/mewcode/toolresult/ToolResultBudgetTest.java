@@ -76,7 +76,7 @@ class ToolResultBudgetTest {
 
     @Test
     void frozenNeverReplaced(@TempDir Path dir) {
-        // Turn 1: a single result well under the aggregate budget.
+        // 第 1 回合：远低于总预算的单一结果。
         int quarter = ToolResultBudget.MESSAGE_AGGREGATE_LIMIT / 4;
         var first = new ToolResultBlock("t1", repeat("a", quarter), false);
         var conv = oneToolResultMsg(first);
@@ -84,10 +84,13 @@ class ToolResultBudgetTest {
         ToolResultBudget.apply(conv, dir, state);
         assertFalse(state.replacements().containsKey("t1"));
 
-        // Turn 2: force the same message to contain a NEW huge result that
-        // blows past the single-result limit. t1 must remain raw because its
-        // decision was frozen at turn 1, even though the message is now over
-        // budget.
+        // 第 2 回合：强制同一消息包含 NEW 巨大结果
+
+        // 突破了单一结果的限制。 t1 必须保持原始状态，因为它
+
+        // 尽管消息现在已经结束，但决定在第 1 回合被冻结
+
+        // 预算。
         var huge = new ToolResultBlock("t2",
                 repeat("b", ToolResultBudget.SINGLE_RESULT_LIMIT + 200), false);
         var conv2 = oneToolResultMsg(first, huge);

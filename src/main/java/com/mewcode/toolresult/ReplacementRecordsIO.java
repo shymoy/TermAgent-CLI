@@ -15,10 +15,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * JSONL persistence for {@link ContentReplacementRecord}. One file per
- * session at {@code <sessionDir>/replacement_records.jsonl}; append-only,
- * one record per line. Loading a missing file returns an empty list so
- * resume and cold-start can share a code path.
+ * 以 JSONL 格式持久化 {@link ContentReplacementRecord}。
+ * 每个会话使用 {@code <sessionDir>/replacement_records.jsonl} 文件，
+ * 采用只追加写入，每行一条记录。文件不存在时返回空列表，
+ * 使会话恢复和冷启动可共用同一条代码路径。
  */
 public final class ReplacementRecordsIO {
 

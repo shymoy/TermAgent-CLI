@@ -7,11 +7,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Manages plan files stored under {@code .mewcode/plans/} in the working
- * directory.
+
+ * 管理工作中存储在 {@code .mewcode/plans/} 下的计划文件
+
+ * 目录。
+
  * <p>
- * A plan slug is generated from word lists and a timestamp, and the
- * singleton plan path is cached for the lifetime of the process.
+
+ * 计划 slug 是根据单词列表和时间戳生成的，并且
+
+ * 单例计划路径在进程的生命周期内被缓存。
+
  */
 public class PlanFile {
 
@@ -31,12 +37,16 @@ public class PlanFile {
 
     private static String currentPlanPath;
 
-    // ── Slug generation ─────────────────────────────────────────────────
+    // ── 弹头生成──────────────────────────────────────────────────
 
     /**
-     * Generates a human-friendly slug such as {@code bold-sketch-0515-1423}.
-     * Uses the current nanosecond timestamp modulo the word-list lengths,
-     * matching the Go implementation's selection logic.
+
+     * 生成一个人类友好的 slug，例如 {@code bold-sketch-0515-1423}。
+
+     * 使用当前纳秒时间戳对单词列表长度取模，
+
+     * 匹配 Go 实现的选择逻辑。
+
      */
     public static String generateSlug() {
         long nanos = System.nanoTime();
@@ -49,7 +59,7 @@ public class PlanFile {
         return ADJECTIVES[ai] + "-" + NOUNS[ni] + "-" + timestamp;
     }
 
-    // ── Path management ─────────────────────────────────────────────────
+    // ── 路径管理──────────────────────────────────────────────────
 
     public static String getOrCreatePlanPath(String workDir) {
         if (currentPlanPath != null) {
@@ -59,7 +69,7 @@ public class PlanFile {
         try {
             Files.createDirectories(dir);
         } catch (IOException ignored) {
-            // best effort
+            // 尽最大努力
         }
         String slug = generateSlug();
         currentPlanPath = dir.resolve(slug + ".md").toString();
@@ -81,7 +91,7 @@ public class PlanFile {
         currentPlanPath = null;
     }
 
-    // ── Persistence ─────────────────────────────────────────────────────
+    // ── 坚持──────────────────────────────────────────────────────
 
     public static boolean planExists() {
         return currentPlanPath != null && Files.exists(Path.of(currentPlanPath));
@@ -108,10 +118,15 @@ public class PlanFile {
     // ── Utilities ───────────────────────────────────────────────────────
 
     /**
-     * Returns {@code true} when {@code targetPath} refers to the same file
-     * as {@code planPath} (after normalization) or when one is a suffix of
-     * the other. This matches the Go helper
-     * {@code IsPlanFilePath(targetPath, planPath)}.
+
+     * 当 {@code targetPath} 引用同一文件时返回 {@code true}
+
+     * 作为 {@code planPath} （标准化后）或当一个是后缀时
+
+     * 另一个。这与 Go 助手相匹配
+
+     * {@code IsPlanFilePath(targetPath, planPath)}。
+
      */
     public static boolean isPlanFilePath(String targetPath, String planPath) {
         if (planPath == null || planPath.isBlank()) {

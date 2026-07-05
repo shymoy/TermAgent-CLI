@@ -4,9 +4,13 @@ package com.mewcode.subagent;
 import java.util.List;
 
 /**
- * Defines the configuration for a sub-agent type, including its name,
- * description, tool restrictions, optional system prompt override,
- * maximum turns, and model selection.
+
+ * 定义子代理类型的配置，包括其名称、
+
+ * 描述、工具限制、可选系统提示覆盖、
+
+ * 最大匝数和型号选择。
+
  */
 public record SubAgentSpec(
         String name,

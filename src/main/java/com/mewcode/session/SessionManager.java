@@ -16,24 +16,40 @@ import java.util.stream.Stream;
 public class SessionManager {
 
     /**
-     * TYPE_COMPACT_BOUNDARY marks a session record as a compaction boundary
-     * rather than a plain conversation message. A boundary record's content
-     * holds a JSON blob (see {@link CompactBoundary}) carrying the summary text
-     * plus the recent tail (keep) preserved verbatim at compaction time. Plain
-     * messages leave {@code type} null/empty, so old sessions and normal turns
-     * are unaffected (append-only, backward-compatible).
+
+     * TYPE_COMPACT_BOUNDARY 将会话记录标记为压缩边界
+
+     * 而不是简单的对话消息。边界记录的内容
+
+     * 包含一个带有摘要文本的 JSON blob（请参阅 {@link CompactBoundary}）
+
+     * 加上最近的尾部（保留）在压缩时逐字保留。平原
+
+     * 消息使 {@code type} 为空/空，因此旧会话和正常轮流
+
+     * 不受影响（仅附加，向后兼容）。
+
      */
     public static final String TYPE_COMPACT_BOUNDARY = "compact_boundary";
 
     /**
-     * A session record. {@code type} distinguishes record kinds: empty/null (the
-     * default) means a plain conversation message; {@link #TYPE_COMPACT_BOUNDARY}
-     * means {@code content} is a {@link CompactBoundary} JSON blob written by
-     * {@link #saveCompactBoundary}.
+
+     * 会话记录。 {@code type} 区分记录类型：空/空（
+
+     * 默认）表示普通对话消息； {@link #TYPE_COMPACT_BOUNDARY}
+
+     * 表示 {@code content} 是一个 {@link CompactBoundary} JSON 写入的 blob
+
+     * {@link #saveCompactBoundary}。
+
      * <p>
-     * {@code toolUseId} records the tool_use block ID from the API response so
-     * that chain validation can work correctly on resume — the model requires
-     * tool_result blocks to reference the exact tool_use_id they respond to.
+
+     * {@code toolUseId} 记录 API 响应中的 tool_use 块 ID，以便
+
+     * 链验证可以在简历上正常工作——模型需要
+
+     * tool_result 块引用它们响应的确切 tool_use_id。
+
      */
     public record SessionMessage(String role, String type, String content, long timestamp, String toolUseId) {
         /** Convenience constructor for plain (non-boundary) messages (无 toolUseId). */
@@ -41,7 +57,11 @@ public class SessionManager {
             this(role, null, content, timestamp, null);
         }
 
-        /** Convenience constructor with type but no toolUseId. */
+        /**
+
+         * 有类型但没有 toolUseId 的便捷构造函数。
+
+         */
         public SessionMessage(String role, String type, String content, long timestamp) {
             this(role, type, content, timestamp, null);
         }
@@ -52,22 +72,36 @@ public class SessionManager {
     }
 
     /**
-     * One verbatim message preserved in the recent tail at compaction time. Only
-     * role + content text is stored, matching how the session log already
-     * persists messages (text only, no tool blocks).
+
+     * 在压缩时，一条逐字记录的消息保留在最近的尾部中。仅
+
+     * 存储角色+内容文本，与会话日志的方式相匹配
+
+     * 保留消息（仅文本，无工具块）。
+
      */
     public record KeepMessage(String role, String content) {}
 
     /**
-     * Structured payload stored (as JSON) in the content of a boundary record.
-     * {@code summary} is the LLM-produced summary of the older prefix; {@code keep}
-     * is the recent tail kept verbatim. On resume the compacted state is rebuilt
-     * as: [user message = summary] + keep + any plain messages appended after the
-     * boundary.
+
+     * 存储在边界记录内容中的结构化有效负载（如 JSON）。
+
+     * {@code summary} 是 LLM 生成的旧前缀的摘要； {@code keep}
+
+     * 是最近的尾部逐字保存。恢复时重建压缩状态
+
+     * 如：[用户消息 = 摘要] + 保留 + 后面附加的任何纯文本消息
+
+     * 边界。
+
      */
     public record CompactBoundary(String summary, List<KeepMessage> keep) {}
 
-    /** Result of {@link #findLastCompactBoundary}: the boundary and the plain messages after it. */
+    /**
+
+     * {@link #findLastCompactBoundary} 的结果：边界和其后的明文消息。
+
+     */
     public record BoundaryScan(CompactBoundary boundary, List<SessionMessage> after, boolean found) {}
 
     public record SessionInfo(String id, String firstMessage, int messageCount,
@@ -79,7 +113,7 @@ public class SessionManager {
         return Path.of(workDir, ".mewcode", "sessions");
     }
 
-    // ---- ID generation ----
+    // ---- ID生成----
 
     /**
      * 生成带随机后缀的 session ID，格式为 yyyyMMdd-HHmmss-xxxx。
@@ -99,7 +133,7 @@ public class SessionManager {
                 java.util.HexFormat.of().formatHex(randomBytes));
     }
 
-    // ---- Persistence ----
+    // ---- 坚持 ----
 
     public static void saveMessage(String workDir, String sessionId, String role, String content) {
         saveRecord(workDir, sessionId, role, null, content, null);
@@ -114,13 +148,21 @@ public class SessionManager {
     }
 
     /**
-     * Append a compaction boundary record so a later resume can rebuild the
-     * compacted state (summary + kept tail) instead of replaying the full
-     * pre-compaction transcript. Append-only: the original prefix messages stay
-     * in the file but won't be replayed past this boundary (see
-     * {@link #findLastCompactBoundary}). The summary + keep are inlined into the
-     * record's content as a {@link CompactBoundary} JSON blob. No-op when
-     * workDir/sessionId is null/blank (tests, one-shot callers).
+
+     * 附加压缩边界记录，以便以后的恢复可以重建
+
+     * 压缩状态（摘要+保留尾部）而不是重放完整状态
+
+     * 预压缩转录本。仅附加：保留原始前缀消息
+
+     * 在文件中，但不会重播超过此边界（请参阅
+
+     * {@link #findLastCompactBoundary}）。摘要+保留内联到
+
+     * 将内容记录为 {@link CompactBoundary} JSON blob。无操作时
+
+     * workDir/sessionId 为 null/空白（测试、一次性呼叫者）。
+
      */
     public static void saveCompactBoundary(String workDir, String sessionId,
                                            String summary, List<KeepMessage> keep) {
@@ -132,8 +174,8 @@ public class SessionManager {
                     new CompactBoundary(summary, keep == null ? List.of() : keep));
             saveRecord(workDir, sessionId, "system", TYPE_COMPACT_BOUNDARY, blob, null);
         } catch (JsonProcessingException ignored) {
-            // best-effort: a failed boundary just means the next resume replays
-            // verbatim, which is still correct (backward-compatible).
+            // 尽力而为：失败的边界仅意味着下一个恢复重播
+            // 逐字记录，这仍然是正确的（向后兼容）。
         }
     }
 
@@ -145,8 +187,8 @@ public class SessionManager {
             Path file = baseDir.resolve(sessionId + ".jsonl");
             Map<String, Object> line = new LinkedHashMap<>();
             line.put("role", role);
-            // omit `type` for plain messages so old readers and old sessions are
-            // unaffected (matches Go's `omitempty`).
+            // 省略 `type` 来表示普通消息，以便老读者和旧会话
+            // 不受影响（与 Go 的 `omitempty` 匹配）。
             if (type != null && !type.isEmpty()) {
                 line.put("type", type);
             }
@@ -159,7 +201,7 @@ public class SessionManager {
             String json = MAPPER.writeValueAsString(line) + "\n";
             Files.writeString(file, json, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException ignored) {
-            // best-effort, same as the Go version
+            // 尽力而为，与 Go 版本相同
         }
     }
 
@@ -186,23 +228,29 @@ public class SessionManager {
                         messages.add(new SessionMessage(role, type, content, ts, toolUseId));
                     }
                 } catch (IOException ignored) {
-                    // skip malformed lines
+                    // 跳过格式错误的行
                 }
             }
         } catch (IOException ignored) {
-            // return whatever we collected so far
+            // 返回我们迄今为止收集的所有内容
         }
         return messages;
     }
 
-    // ---- Compaction-boundary scanning ----
+    // ---- 压实-边界扫描 ----
 
     /**
-     * Scan the loaded records for the LAST compaction boundary. Returns the
-     * parsed boundary plus the plain (non-boundary) messages appended after it.
-     * When no boundary exists (or its blob is corrupt) {@code found} is false and
-     * the caller should replay all records verbatim — backward-compatible with
+
+     * 扫描加载的记录以查找 LAST 压缩边界。返回
+
+     * 解析的边界加上其后附加的普通（非边界）消息。
+
+     * 当不存在边界（或其斑点已损坏）时，{@code found} 为 false 并且
+
+     * 调用者应逐字重播所有记录 - 向后兼容
+
      * old sessions that have no boundary records.
+
      */
     public static BoundaryScan findLastCompactBoundary(List<SessionMessage> messages) {
         int last = -1;
@@ -218,8 +266,8 @@ public class SessionManager {
         try {
             boundary = MAPPER.readValue(messages.get(last).content(), CompactBoundary.class);
         } catch (IOException e) {
-            // Corrupt boundary blob — fall back to full replay rather than losing
-            // the conversation.
+            // 损坏的边界斑点 - 回退到完整重播而不是失败
+            // 谈话。
             return new BoundaryScan(null, List.of(), false);
         }
         List<SessionMessage> after = new ArrayList<>();
@@ -231,14 +279,20 @@ public class SessionManager {
         return new BoundaryScan(boundary, after, true);
     }
 
-    // ---- Conversation rebuild ----
+    // ---- 对话重建 ----
 
     /**
-     * Compaction-aware rebuild. If the session contains a {@code compact_boundary},
-     * the live conversation is the compacted state — [summary as user message] +
-     * kept tail + any plain messages appended after the boundary — and the
-     * original pre-compaction prefix is NOT replayed (it stays in the file for
-     * audit). Without a boundary (old sessions) everything is replayed verbatim.
+
+     * 压缩感知重建。如果会话包含 {@code compact_boundary}，
+
+     * 实时对话是压缩状态 - [摘要为用户消息] +
+
+     * 保留尾部+边界后附加的任何普通消息 - 以及
+
+     * 原始预压缩前缀是 NOT 重播（它保留在文件中
+
+     * 审计）。如果没有边界（旧会话），一切都会逐字重播。
+
      */
     public static ConversationManager rebuildConversation(List<SessionMessage> messages) {
         BoundaryScan scan = findLastCompactBoundary(messages);
@@ -246,8 +300,8 @@ public class SessionManager {
             return replay(messages);
         }
         List<SessionMessage> replay = new ArrayList<>();
-        // Summary becomes the leading user message with the same Chinese framing
-        // as autoCompact, so the model sees a consistent context header on resume.
+        // 摘要成为同中文框架领先的用户留言
+        // 作为 autoCompact，因此模型在简历中看到一致的上下文标头。
         String resumeSummary = "本次会话延续自之前的对话，因上下文空间不足进行了压缩。以下是早期对话的摘要：\n\n"
                 + scan.boundary().summary();
         if (!scan.boundary().keep().isEmpty()) {
@@ -273,7 +327,7 @@ public class SessionManager {
         return conversation;
     }
 
-    // ---- Session expiry cleanup ----
+    // ---- 会话过期清理 ----
 
     /** 过期阈值：30 天 */
     private static final long EXPIRY_DAYS = 30;
@@ -334,11 +388,11 @@ public class SessionManager {
                          sessions.add(new SessionInfo(id, first, msgs.size(),
                                  fileSize, branch, modTime));
                      } catch (IOException ignored) {
-                         // skip this file
+                         // 跳过这个文件
                      }
                  });
         } catch (IOException ignored) {
-            // return empty
+            // 返回空
         }
         sessions.sort(Comparator.comparing(SessionInfo::modTime).reversed());
         return sessions;
@@ -359,7 +413,7 @@ public class SessionManager {
         }
     }
 
-    // ---- Formatting helpers ----
+    // ---- 格式化助手 ----
 
     public static String formatRelativeTime(Instant t) {
         Duration d = Duration.between(t, Instant.now());

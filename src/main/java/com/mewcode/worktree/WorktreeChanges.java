@@ -5,7 +5,9 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Change detection for worktrees with fail-closed semantics.
+
+ * 具有故障关闭语义的工作树变更检测。
+
  */
 public final class WorktreeChanges {
 
@@ -14,8 +16,11 @@ public final class WorktreeChanges {
     private WorktreeChanges() {}
 
     /**
-     * Returns true if the worktree has uncommitted changes or new commits
-     * since headCommit. Returns true on any git failure (fail-closed).
+
+     * 如果工作树有未提交的更改或新提交，则返回 true
+
+     * 自 headCommit 起。任何 git 失败时返回 true（失败关闭）。
+
      */
     public static boolean hasChanges(String worktreePath, String headCommit) {
         try {
@@ -31,9 +36,13 @@ public final class WorktreeChanges {
     }
 
     /**
-     * Returns a detailed change summary, or null when state cannot be
-     * reliably determined. Callers must treat null as "unknown, assume
-     * unsafe" (fail-closed).
+
+     * 返回详细的更改摘要，或者当状态无法确定时返回 null
+
+     * 可靠地确定。调用者必须将 null 视为 "unknown, assume
+
+     * unsafe"（失败关闭）。
+
      */
     public static ChangeSummary countChanges(String worktreePath, String originalHeadCommit) {
         if (originalHeadCommit == null || originalHeadCommit.isBlank()) {
