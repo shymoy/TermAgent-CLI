@@ -10,8 +10,8 @@
 - `./gradlew test`：运行全部 JUnit 5 测试。
 - `./gradlew test --tests io.github.shymoy.termagent.llm.DeepSeekClientTest`：只运行指定测试类。
 - `./gradlew build`：完成编译、测试并生成标准构建产物。
-- `./gradlew shadowJar`：生成包含全部依赖的 `build/libs/termagent-cli.jar`。
-- `java -jar build/libs/termagent-cli.jar`：运行打包后的程序。
+- `./gradlew shadowJar`：生成包含全部依赖的 `build/libs/TermAgent-CLI.jar`。
+- `java -jar build/libs/TermAgent-CLI.jar`：运行打包后的程序。
 
 统一使用仓库自带的 Gradle Wrapper，不要依赖本机安装的 Gradle 版本。
 

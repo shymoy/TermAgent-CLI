@@ -12,6 +12,11 @@ java {
     }
 }
 
+// 统一标准 JAR、Shadow JAR 以及 IntelliJ Gradle 任务显示的制品名。
+base {
+    archivesName.set("TermAgent-CLI")
+}
+
 // 告诉 Gradle 程序入口类是谁，`./gradlew run` 会从这里启动。
 application {
     mainClass = "io.github.shymoy.termagent.TermAgentCli"
@@ -67,7 +72,7 @@ tasks.named<JavaExec>("run") {
 
 // 生成一个包含所有依赖的可执行 jar，方便分发和直接运行。
 tasks.shadowJar {
-    archiveBaseName = "termagent-cli"
+    archiveBaseName = "TermAgent-CLI"
     archiveClassifier = ""
     archiveVersion = ""
     mergeServiceFiles()

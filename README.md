@@ -10,7 +10,7 @@ Git worktree 隔离以及远程 Web 界面。
 ./gradlew test
 ./gradlew run
 ./gradlew shadowJar
-java -jar build/libs/termagent-cli.jar
+java -jar build/libs/TermAgent-CLI.jar
 ```
 
 常用参数：
