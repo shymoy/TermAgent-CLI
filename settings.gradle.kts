@@ -1,1 +1,1 @@
-rootProject.name = "mewcode"
+rootProject.name = "TermAgent-CLI"

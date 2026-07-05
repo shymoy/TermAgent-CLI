@@ -5,6 +5,7 @@ build/
 .idea/
 *.iml
 out/
+.termagent/
 .mewcode/
 CLAUDE.md
 .DS_Store
