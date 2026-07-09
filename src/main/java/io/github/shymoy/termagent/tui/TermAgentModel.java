@@ -1286,7 +1286,7 @@ public class TermAgentModel implements Model {
 
         fireHook(HookEngine.EventName.TURN_START, null, null);
 
-        // 预先创建 queue 并立即开始轮询，避免 TUI 卡住
+        // 预先创建 queue 并立即开始轮询；Agent.run 内部负责把主循环放到后台虚拟线程。
         var queue = new java.util.concurrent.LinkedBlockingQueue<io.github.shymoy.termagent.agent.AgentEvent>(64);
         agentQueue = queue;
         if (askUserTool != null) askUserTool.setEventQueue(queue);
@@ -1295,14 +1295,7 @@ public class TermAgentModel implements Model {
         // 不再同步等 3 秒——与 Claude Code 一致
         agent.setMemoryRecallFuture(prefetchFuture);
 
-        Thread.startVirtualThread(() -> {
-            try {
-                agent.run(conversation, queue);
-            } catch (Exception e) {
-                queue.offer(new io.github.shymoy.termagent.agent.AgentEvent.ErrorEvent(
-                        "Agent error: " + e.getMessage()));
-            }
-        });
+        agent.run(conversation, queue);
 
         Command pollCmd = Command.tick(POLL_INTERVAL, t -> new AgentEventMessage());
         return UpdateResult.from(this, Command.batch(Command.println(userLine), pollCmd));
