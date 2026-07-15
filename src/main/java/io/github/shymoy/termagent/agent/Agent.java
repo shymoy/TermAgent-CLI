@@ -13,6 +13,7 @@ import io.github.shymoy.termagent.permission.PermissionChecker;
 import io.github.shymoy.termagent.permission.PermissionMode;
 import io.github.shymoy.termagent.plan.PlanFile;
 import io.github.shymoy.termagent.prompt.PlanModePrompt;
+import io.github.shymoy.termagent.tool.ToolExecutionContext;
 import io.github.shymoy.termagent.tool.ToolRegistry;
 import io.github.shymoy.termagent.toolresult.ApplyResult;
 import io.github.shymoy.termagent.toolresult.ContentReplacementState;
@@ -117,30 +118,50 @@ public class Agent {
     public HookEngine getHookEngine() { return hookEngine; }
 
     public BlockingQueue<AgentEvent> run(ConversationManager conv) {
-        // 无外部队列时创建默认队列；容量用于限制 Agent 生产事件的速度，避免 UI 来不及消费时无限堆积。
-        var queue = new LinkedBlockingQueue<AgentEvent>(64);
-        run(conv, queue);
-        return queue;
+        return runCancellable(conv).queue();
     }
 
     // 使用调用方提供的 queue，允许 TUI 在 Agent 启动前就持有队列并立即开始轮询。
     public void run(ConversationManager conv, BlockingQueue<AgentEvent> queue) {
+        runCancellable(conv, queue);
+    }
+
+    /** 启动可取消的 Agent Run，并返回包含队列、线程和 token 的运行句柄。 */
+    public AgentRunHandle runCancellable(ConversationManager conv) {
+        return runCancellable(conv, newEventQueue());
+    }
+
+    public AgentRunHandle runCancellable(ConversationManager conv, BlockingQueue<AgentEvent> queue) {
+        return startRun(conv, queue, new CancellationToken());
+    }
+
+    private AgentRunHandle startRun(
+            ConversationManager conv,
+            BlockingQueue<AgentEvent> queue,
+            CancellationToken token
+    ) {
         // 模型请求和工具执行都可能阻塞，因此放在虚拟线程中，避免卡住 TUI 事件循环。
-        Thread.startVirtualThread(() -> {
+        Thread thread = Thread.startVirtualThread(() -> {
             try {
-                agentLoop(conv, queue);
+                agentLoop(conv, queue, token);
             } catch (Exception e) {
                 // 主循环的未处理异常也转换成 AgentEvent，由 UI 统一展示，而不是让后台线程静默退出。
                 putSafe(queue, new AgentEvent.ErrorEvent("Agent error: " + e.getMessage()));
             }
         });
+        return new AgentRunHandle(queue, thread, token);
+    }
+
+    private static BlockingQueue<AgentEvent> newEventQueue() {
+        // 容量用于限制 Agent 生产事件的速度，避免 UI 来不及消费时无限堆积。
+        return new LinkedBlockingQueue<>(64);
     }
 
     /**
      * Agent 主循环：每一轮把当前会话转换成一次 LLM 请求，消费流式响应，
      * 如果模型调用了工具，就执行工具并把结果写回会话，然后进入下一轮。
      */
-    private void agentLoop(ConversationManager conv, BlockingQueue<AgentEvent> queue) {
+    private void agentLoop(ConversationManager conv, BlockingQueue<AgentEvent> queue, CancellationToken token) {
         // 长期记忆只在循环开始时注入一次，避免每轮请求重复塞入同一份上下文。
         conv.injectLongTermMemory(instructions, memoryContent);
 
@@ -153,6 +174,9 @@ public class Agent {
 
         try {
         for (int iteration = 1; ; iteration++) {
+            // 协作式取消在轮次入口收敛，保证已取消的 Run 不再发起下一次模型请求。
+            if (token.isCancelled()) break;
+
             if (maxIterations > 0 && iteration > maxIterations) {
                 putSafe(queue, new AgentEvent.ErrorEvent(
                         "Agent reached maximum iterations (%d)".formatted(maxIterations)));
@@ -350,11 +374,13 @@ public class Agent {
             putSafe(queue, new AgentEvent.UsageEvent(totalInput, totalOutput));
 
             // 输出被 max_tokens 截断时，先提升输出上限并让模型从中断处续写。
+            // 截断内容和恢复提示属于同一提交片段，取消后两者都不写入。
             if ("max_tokens".equals(stopReason)) {
                 if (!maxTokensEscalated) {
                     maxTokensEscalated = true;
                     client.setMaxOutputTokens(MAX_TOKENS_CEILING);
                     if (!text.isEmpty()) {
+                        if (token.isCancelled()) break;
                         conv.addAssistantFull(text.toString(), thinkingBlocks, List.of());
                         conv.addUserMessage("Output token limit hit. Resume directly from where you stopped. Do not apologize or repeat previous content. Pick up mid-thought if needed.");
                     }
@@ -362,6 +388,7 @@ public class Agent {
                     continue;
                 } else if (outputRecoveries < MAX_OUTPUT_RECOVERIES) {
                     outputRecoveries++;
+                    if (token.isCancelled()) break;
                     conv.addAssistantFull(text.toString(), thinkingBlocks, List.of());
                     conv.addUserMessage("Output token limit hit. Resume directly from where you stopped. Break remaining work into smaller pieces.");
                     putSafe(queue, new AgentEvent.RetryEvent(
@@ -377,6 +404,8 @@ public class Agent {
             var toolUseBlocks = toolCalls.stream()
                     .map(tc -> new ToolUseBlock(tc.toolId, tc.toolName, tc.args))
                     .toList();
+            // 模型流可能在 Ctrl+C 后才返回；提交前检查可拦住这类迟到响应。
+            if (token.isCancelled()) break;
             conv.addAssistantFull(text.toString(), thinkingBlocks, toolUseBlocks);
 
             // 用本轮 API 返回的真实 usage 重新建立压缩估算锚点。
@@ -405,12 +434,20 @@ public class Agent {
             var callInfos = toolCalls.stream()
                     .map(tc -> new StreamingExecutor.ToolCallInfo(tc.toolId, tc.toolName, tc.args))
                     .toList();
-            var results = executor.executeAll(callInfos);
+            List<StreamingExecutor.ToolExecResult> results;
+            try {
+                results = executor.executeAll(callInfos, new ToolExecutionContext(token));
+            } catch (CancellationException e) {
+                // 整轮 Run 的取消不是工具失败，不生成普通 tool result，直接结束主循环。
+                break;
+            }
 
             // 工具结果作为一条内部 user 消息写回，下一轮请求时再由协议适配器转换。
             var resultBlocks = results.stream()
                     .map(r -> new ToolResultBlock(r.toolId(), r.output(), r.isError()))
                     .toList();
+            // 工具可能在执行期间收到取消；提交前再检查，避免迟到结果污染会话上下文。
+            if (token.isCancelled()) break;
             conv.addToolResultsMessage(resultBlocks);
 
             // 非阻塞 memory recall：工具执行完后检查 prefetch 是否就绪

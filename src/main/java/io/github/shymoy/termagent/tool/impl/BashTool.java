@@ -1,16 +1,19 @@
 
 package io.github.shymoy.termagent.tool.impl;
 
+import io.github.shymoy.termagent.agent.CancellationToken;
 import io.github.shymoy.termagent.sandbox.Sandbox;
 import io.github.shymoy.termagent.sandbox.SandboxConfig;
 import io.github.shymoy.termagent.tool.Tool;
 import io.github.shymoy.termagent.tool.ToolCategory;
+import io.github.shymoy.termagent.tool.ToolExecutionContext;
 import io.github.shymoy.termagent.tool.ToolResult;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -116,6 +119,13 @@ public class BashTool implements Tool {
      */
     @Override
     public ToolResult execute(Map<String, Object> args) {
+        // 保留旧 Tool API；没有运行上下文时维持不可由外部主动取消的原有语义。
+        return execute(args, new ToolExecutionContext(new CancellationToken()));
+    }
+
+    @Override
+    public ToolResult execute(Map<String, Object> args, ToolExecutionContext context) {
+        var token = context.cancellationToken();
         String command = stringArg(args, "command", "");
         if (command.isEmpty()) {
             return ToolResult.error("Error: command is required");
@@ -128,6 +138,8 @@ public class BashTool implements Tool {
         }
 
         try {
+            token.throwIfCancelled();
+
             // 如果沙箱可用，将命令包装在沙箱中执行
             String actualCommand = command;
             if (sandbox != null && sandbox.isAvailable() && sandboxConfig != null) {
@@ -146,49 +158,70 @@ public class BashTool implements Tool {
 
             Process process = pb.start();
 
-            // 合并流后只需读取 getInputStream()
-            String output;
-            try (InputStream stream = process.getInputStream()) {
-                output = new String(stream.readAllBytes());
-            }
+            // token 取消时主动终止 OS 进程树；try-with-resources 在正常结束后注销回调。
+            try (var ignored = token.onCancel(() -> destroyProcessTree(process))) {
+                token.throwIfCancelled();
 
-            boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
-            if (!finished) {
-                // 超时后强制终止子进程，并把超时作为工具级错误返回给模型。
-                process.destroyForcibly();
-                return ToolResult.error("Error: command timed out after " + timeout + "s");
-            }
+                // 合并流后只需读取 getInputStream()
+                String output;
+                try (InputStream stream = process.getInputStream()) {
+                    output = new String(stream.readAllBytes());
+                }
+                token.throwIfCancelled();
 
-            int exitCode = process.exitValue();
+                boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
+                token.throwIfCancelled();
+                if (!finished) {
+                    // 超时后强制终止子进程，并把超时作为工具级错误返回给模型。
+                    destroyProcessTree(process);
+                    return ToolResult.error("Error: command timed out after " + timeout + "s");
+                }
 
-            var sb = new StringBuilder();
-            if (!output.isEmpty()) {
-                sb.append(output);
-                if (!output.endsWith("\n")) {
+                int exitCode = process.exitValue();
+
+                var sb = new StringBuilder();
+                if (!output.isEmpty()) {
+                    sb.append(output);
+                    if (!output.endsWith("\n")) {
+                        sb.append('\n');
+                    }
+                }
+
+                // 非零 exit code 是命令本身的执行结果，不等同于工具框架异常，因此只附加退出码。
+                if (exitCode != 0) {
+                    sb.append("Exit code ").append(exitCode);
+                    // 对特殊命令附加语义提示
+                    String hint = getExitCodeHint(command, exitCode);
+                    if (hint != null) {
+                        sb.append(" (").append(hint).append(")");
+                    }
                     sb.append('\n');
                 }
+
+                // 正常执行完成，isError 始终为 false（仅超时和中断才为 true）
+                return new ToolResult(sb.toString(), false);
             }
 
-            // 非零 exit code 是命令本身的执行结果，不等同于工具框架异常，因此只附加退出码。
-            if (exitCode != 0) {
-                sb.append("Exit code ").append(exitCode);
-                // 对特殊命令附加语义提示
-                String hint = getExitCodeHint(command, exitCode);
-                if (hint != null) {
-                    sb.append(" (").append(hint).append(")");
-                }
-                sb.append('\n');
-            }
-
-            // 正常执行完成，isError 始终为 false（仅超时和中断才为 true）
-            return new ToolResult(sb.toString(), false);
-
+        } catch (CancellationException e) {
+            // 交给 StreamingExecutor 终止整轮 Run，不转换成 ToolResult.error。
+            throw e;
         } catch (IOException e) {
             return ToolResult.error("Error executing command: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            token.throwIfCancelled();
             return ToolResult.error("Error: command interrupted");
         }
+    }
+
+    /** 尽量先终止后代进程，再强制终止当前 Bash 根进程。 */
+    private static void destroyProcessTree(Process process) {
+        try {
+            process.descendants().forEach(ProcessHandle::destroyForcibly);
+        } catch (RuntimeException ignored) {
+            // 进程树清理是 best-effort；至少还会尝试杀 root process。
+        }
+        process.destroyForcibly();
     }
 
     /**

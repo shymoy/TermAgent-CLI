@@ -7,6 +7,7 @@ import io.github.shymoy.termagent.permission.PermissionChecker;
 import io.github.shymoy.termagent.permission.PermissionResponse;
 import io.github.shymoy.termagent.tool.Tool;
 import io.github.shymoy.termagent.tool.ToolCategory;
+import io.github.shymoy.termagent.tool.ToolExecutionContext;
 import io.github.shymoy.termagent.tool.ToolRegistry;
 import io.github.shymoy.termagent.tool.ToolResult;
 
@@ -17,7 +18,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -60,23 +63,43 @@ public class StreamingExecutor {
      * 执行模型在一轮响应中产生的全部工具调用，并保持结果顺序与调用顺序一致。
      */
     public List<ToolExecResult> executeAll(List<ToolCallInfo> calls) {
+        // 旧调用方没有所属 Run，使用永不主动取消的独立 token 保持原有行为。
+        return executeAll(calls, new ToolExecutionContext(new CancellationToken()));
+    }
+
+    /** 执行工具调用，并在调度、权限、Hook 和结果提交边界响应整轮 Run 的取消。 */
+    public List<ToolExecResult> executeAll(List<ToolCallInfo> calls, ToolExecutionContext context) {
         // 按相邻性分批：连续的只读工具合成一个并行批次，写/命令工具各自独占一批
         var batches = partitionToolCalls(calls);
         var results = new ArrayList<ToolExecResult>();
 
         for (var batch : batches) {
+            context.cancellationToken().throwIfCancelled();
             if (batch.concurrent && batch.calls.size() > 1) {
                 try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                     var futures = batch.calls.stream()
-                            .map(call -> executor.submit(() -> executeSingle(call)))
+                            .map(call -> executor.submit(() -> executeSingle(call, context)))
                             .toList();
                     for (var future : futures) {
-                        try { results.add(future.get()); }
-                        catch (Exception ignored) {}
+                        context.cancellationToken().throwIfCancelled();
+                        try {
+                            results.add(future.get());
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            context.cancellationToken().throwIfCancelled();
+                        } catch (ExecutionException e) {
+                            if (e.getCause() instanceof CancellationException ce) {
+                                throw ce;
+                            }
+                        }
                     }
                 }
             } else {
-                for (var call : batch.calls) results.add(executeSingle(call));
+                for (var call : batch.calls) {
+                    context.cancellationToken().throwIfCancelled();
+                    results.add(executeSingle(call, context));
+                    context.cancellationToken().throwIfCancelled();
+                }
             }
         }
 
@@ -108,7 +131,9 @@ public class StreamingExecutor {
      * 执行单次工具调用。完整顺序为：查找工具、权限检查、前置 Hook、
      * 调用工具、记录恢复快照、通知执行结果、运行后置 Hook。
      */
-    private ToolExecResult executeSingle(ToolCallInfo call) {
+    private ToolExecResult executeSingle(ToolCallInfo call, ToolExecutionContext context) {
+        context.cancellationToken().throwIfCancelled();
+
         // 模型只返回工具名称，具体 Tool 实例需要从注册表中查找。
         Tool tool = registry.get(call.toolName());
         if (tool == null) {
@@ -116,9 +141,12 @@ public class StreamingExecutor {
             return new ToolExecResult(call.toolId(), "Error: unknown tool '" + call.toolName() + "'", true);
         }
 
+        context.cancellationToken().throwIfCancelled();
+
         // 权限检查优先于 hook（与 Go 版保持一致）：先拦截无权操作，再让 hook 介入
         if (checker != null) {
             var check = checker.check(tool, call.args());
+            context.cancellationToken().throwIfCancelled();
             switch (check.decision()) {
                 case DENY -> {
                     String msg = "Permission denied: " + check.reason();
@@ -128,13 +156,20 @@ public class StreamingExecutor {
                 case ASK -> {
                     var future = new CompletableFuture<PermissionResponse>();
                     String desc = checker.describeToolAction(call.toolName(), call.args());
+                    context.cancellationToken().throwIfCancelled();
                     putSafe(new AgentEvent.PermissionRequestEvent(call.toolName(), desc, future));
+                    context.cancellationToken().throwIfCancelled();
                     PermissionResponse response;
                     try {
                         response = future.get(5, TimeUnit.MINUTES);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        context.cancellationToken().throwIfCancelled();
+                        response = PermissionResponse.DENY;
                     } catch (Exception e) {
                         response = PermissionResponse.DENY;
                     }
+                    context.cancellationToken().throwIfCancelled();
                     if (response == PermissionResponse.DENY) {
                         putSafe(new AgentEvent.ToolResultEvent(
                                 call.toolId(), call.toolName(), "Permission denied by user", true, 0));
@@ -153,7 +188,9 @@ public class StreamingExecutor {
 
         // Pre-tool hook 在权限通过后执行，可拦截特定工具调用
         if (hookEngine != null) {
+            context.cancellationToken().throwIfCancelled();
             var hookResult = hookEngine.runPreToolHooks(call.toolName(), call.args());
+            context.cancellationToken().throwIfCancelled();
             if (hookResult.rejected()) {
                 String msg = "Rejected by hook: " + hookResult.message();
                 putSafe(new AgentEvent.ToolResultEvent(call.toolId(), call.toolName(), msg, true, 0));
@@ -165,12 +202,18 @@ public class StreamingExecutor {
         ToolResult result;
         try {
             // 这里才真正进入具体工具（如 ReadFile、Bash）的 execute 方法。
-            result = tool.execute(call.args());
+            context.cancellationToken().throwIfCancelled();
+            result = tool.execute(call.args(), context);
+            context.cancellationToken().throwIfCancelled();
+        } catch (CancellationException e) {
+            // 取消属于 Agent Run 控制信号，必须向上传播，不能包装成普通工具错误交回模型。
+            throw e;
         } catch (Exception e) {
             result = ToolResult.error("Tool execution error: " + e.getMessage());
         }
         double elapsed = (System.nanoTime() - start) / 1_000_000_000.0;
 
+        context.cancellationToken().throwIfCancelled();
         snapshotForRecovery(call, result);
 
         String output = result.output();
@@ -178,13 +221,16 @@ public class StreamingExecutor {
             output = output.substring(0, ToolRegistry.MAX_OUTPUT_CHARS) + "\n... (truncated)";
         }
 
+        context.cancellationToken().throwIfCancelled();
         putSafe(new AgentEvent.ToolResultEvent(call.toolId(), call.toolName(), output, result.isError(), elapsed));
 
         // 工具执行完成后运行后置 Hook，用于审计或触发额外动作。
         if (hookEngine != null) {
+            context.cancellationToken().throwIfCancelled();
             var ctx = new HookEngine.HookContext(
                     HookEngine.EventName.POST_TOOL_USE, call.toolName(), call.args(), null, null, null);
             hookEngine.runHooks(ctx);
+            context.cancellationToken().throwIfCancelled();
         }
 
         return new ToolExecResult(call.toolId(), output, result.isError());

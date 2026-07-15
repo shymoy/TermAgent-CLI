@@ -3,6 +3,7 @@ package io.github.shymoy.termagent.tui;
 
 import io.github.shymoy.termagent.agent.Agent;
 import io.github.shymoy.termagent.agent.AgentEvent;
+import io.github.shymoy.termagent.agent.AgentRunHandle;
 import io.github.shymoy.termagent.command.CommandRegistry;
 import io.github.shymoy.termagent.config.AppPaths;
 import io.github.shymoy.termagent.config.HookConfig;
@@ -102,6 +103,8 @@ public class TermAgentModel implements Model {
 
     // ── 流媒体基础设施──────────────────────────────────────────
     private BlockingQueue<AgentEvent> agentQueue;
+    // 当前一次 Agent Run 的生命周期句柄，供 Ctrl+C 同时取消 token 并中断后台线程。
+    private AgentRunHandle agentRun;
     private CompletableFuture<PermissionResponse> pendingPermission;
     private boolean permDialog;
     private String permToolName;
@@ -299,6 +302,7 @@ public class TermAgentModel implements Model {
     /** 处理 Ctrl+C：生成中时保存部分响应，空闲时通知程序退出。 */
     public void handleSigint() {
         if (streaming) {
+            cancelCurrentAgentRun();
             savePartialResponse();
             if (program != null) {
                 program.send(new AgentEventMessage());
@@ -349,12 +353,14 @@ public class TermAgentModel implements Model {
         // ── Ctrl+C / QuitMessage：中断串流或退出──────────
         if (msg instanceof QuitMessage) {
             if (streaming) {
+                cancelCurrentAgentRun();
                 savePartialResponse();
                 return UpdateResult.from(this);
             }
         }
         if (msg instanceof KeyPressMessage kpm && kpm.key().equals("ctrl+c")) {
             if (streaming) {
+                cancelCurrentAgentRun();
                 savePartialResponse();
                 return UpdateResult.from(this);
             }
@@ -406,7 +412,8 @@ public class TermAgentModel implements Model {
             thinkingVerb = SpinnerVerbs.random();
             streamBuf.setLength(0);
             toolBlocks.clear();
-            agentQueue = agent.run(conversation);
+            agentRun = agent.runCancellable(conversation);
+            agentQueue = agentRun.queue();
             var pollCmd = Command.tick(POLL_INTERVAL, t -> new AgentEventMessage());
             return UpdateResult.from(this, pollCmd);
         }
@@ -875,6 +882,7 @@ public class TermAgentModel implements Model {
         if (key.equals("enter")) {
             if (inputBuffer.isEmpty()) return UpdateResult.from(this);
             if (streaming) {
+                cancelCurrentAgentRun();
                 savePartialResponse();
             }
             String text = inputBuffer.toString().trim();
@@ -1125,7 +1133,8 @@ public class TermAgentModel implements Model {
                 fireHook(HookEngine.EventName.TURN_START, null, null);
 
                 try {
-                    agentQueue = agent.run(conversation);
+                    agentRun = agent.runCancellable(conversation);
+                    agentQueue = agentRun.queue();
                     if (askUserTool != null) askUserTool.setEventQueue(agentQueue);
                 } catch (Exception e) {
                     streaming = false;
@@ -1295,7 +1304,7 @@ public class TermAgentModel implements Model {
         // 不再同步等 3 秒——与 Claude Code 一致
         agent.setMemoryRecallFuture(prefetchFuture);
 
-        agent.run(conversation, queue);
+        agentRun = agent.runCancellable(conversation, queue);
 
         Command pollCmd = Command.tick(POLL_INTERVAL, t -> new AgentEventMessage());
         return UpdateResult.from(this, Command.batch(Command.println(userLine), pollCmd));
@@ -1422,6 +1431,7 @@ public class TermAgentModel implements Model {
             if (loopDone) {
                 streaming = false;
                 agentQueue = null;
+                agentRun = null;
                 drainTaskNotifications();
                 triggerMemoryExtraction();
                 if (permChecker != null && permChecker.getMode() == PermissionMode.PLAN) {
@@ -1672,8 +1682,16 @@ public class TermAgentModel implements Model {
         chatMessages.add(new ChatMessage("system", "(response interrupted)"));
         streaming = false;
         agentQueue = null;
+        agentRun = null;
         userScrolled = false;
         scrollOffset = 0;
+    }
+
+    /** 只发送协作式取消请求；具体工具是否立即停止由其取消实现决定。 */
+    private void cancelCurrentAgentRun() {
+        if (agentRun != null) {
+            agentRun.cancel();
+        }
     }
 
     private static String renderToolBlockText(ChatMessage.ToolBlockInfo tb) {
